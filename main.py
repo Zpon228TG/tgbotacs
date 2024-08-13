@@ -2,6 +2,7 @@ import telebot
 import json
 import os
 import random
+import time
 
 # Токен вашего бота и ваш Telegram ID
 bot = telebot.TeleBot("7264644656:AAEXeOL9SV0W-ykoOicic6Ec-9uaDHgg-6k")
@@ -353,5 +354,10 @@ while True:
     try:
         bot.polling(none_stop=True, timeout=60, long_polling_timeout=60)
     except Exception as e:
-        print(f"Ошибка: {e}")
-        time.sleep(15) 
+        error_message = f"Ошибка: {e}"
+        print(error_message)
+        try:
+            bot.send_message(admin_id, error_message)  # Отправка сообщения об ошибке администратору
+        except Exception as send_error:
+            print(f"Ошибка при отправке сообщения: {send_error}")
+        time.sleep(15)
