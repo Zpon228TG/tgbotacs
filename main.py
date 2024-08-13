@@ -349,4 +349,9 @@ def delete_gift_account(message):
             bot.send_message(message.chat.id, "❌ Подарочный аккаунт не найден.")
     handle_gift_accounts(message)
 
-bot.polling(none_stop=True)
+while True:
+    try:
+        bot.polling(none_stop=True, timeout=60, long_polling_timeout=60)
+    except Exception as e:
+        print(f"Ошибка: {e}")
+        time.sleep(15) 
