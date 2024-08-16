@@ -362,7 +362,16 @@ def send_summary_before_stop():
         with open(JSON_FILE, 'rb') as file:
             bot.send_document(ADMIN_ID, file, caption="Последняя база данных перед остановкой бота.")
 
-def restart_bot():
-    subprocess.Popen(['python3', os.path.realpath(__file__)])
-# Запуск бота
-bot.polling(none_stop=True)
+
+    
+while True:
+    try:
+        bot.polling(none_stop=True, timeout=60, long_polling_timeout=60)
+    except Exception as e:
+        error_message = f"Ошибка: {e}"
+        print(error_message)
+        try:
+            bot.send_message(admin_id, error_message)  # Отправка сообщения об ошибке администратору
+        except Exception as send_error:
+            print(f"Ошибка при отправке сообщения: {send_error}")
+        time.sleep(15)
