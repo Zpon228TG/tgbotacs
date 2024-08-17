@@ -6,7 +6,7 @@ import telebot
 from telebot import types
 
 # Токен вашего бота и ваш Telegram ID
-TOKEN = '7375465921:AAFxiuhZ6YlTTZVcjwKFUhJA7XUPfM9oLyY'
+TOKEN = '7242149578:AAGoI3qzv5VjL4pAnvqvSjH-WjXbRbFYKe0'
 ADMIN_ID = 6578018656
 
 # Инициализация бота
@@ -23,7 +23,10 @@ def main_menu():
     btn_run_command = types.KeyboardButton("🔧 Выполнить команду")
     btn_start_all = types.KeyboardButton("🚀 Запустить всех ботов")
     btn_stop_all = types.KeyboardButton("🛑 Остановить всех ботов")
+    btn_stop_bot = types.KeyboardButton("❌ Остановить выбранного бота")
+    btn_running_bots = types.KeyboardButton("📋 Список запущенных ботов")
     markup.add(btn_add_bot, btn_run_python, btn_run_command, btn_start_all, btn_stop_all)
+    markup.add(btn_stop_bot, btn_running_bots)
     return markup
 
 # Обработка команды /start
@@ -54,6 +57,10 @@ def menu_handler(message):
         start_all_bots(message)
     elif message.text == "🛑 Остановить всех ботов":
         stop_all_bots(message)
+    elif message.text == "❌ Остановить выбранного бота":
+        list_running_bots(message)
+    elif message.text == "📋 Список запущенных ботов":
+        show_running_bots(message)
     else:
         bot.reply_to(message, "❓ Пожалуйста, выберите действие из меню.", reply_markup=main_menu())
 
@@ -156,18 +163,61 @@ def stop_all_bots(message):
 
     bot.reply_to(message, "🛑 Все запущенные боты остановлены.")
 
+def list_running_bots(message):
+    bots = load_data('bots.json')
+    running_bots = {name: info for name, info in bots.items() if info.get('status') == 'running'}
+
+    if not running_bots:
+        bot.reply_to(message, "🔍 Нет запущенных ботов.")
+        return
+
+    markup = types.InlineKeyboardMarkup()
+    for bot_name in running_bots.keys():
+        markup.add(types.InlineKeyboardButton(text=bot_name, callback_data=f'stop_{bot_name}'))
+    
+    bot.reply_to(message, "📋 Выберите бота для остановки:", reply_markup=markup)
+
+@bot.callback_query_handler(func=lambda call: call.data.startswith('stop_'))
+def stop_selected_bot(call):
+    bot_name = call.data[len('stop_'):]
+    bots = load_data('bots.json')
+
+    if bot_name in bots and bots[bot_name].get('status') == 'running':
+        pid = bots[bot_name].get('pid')
+        if pid:
+            try:
+                os.kill(pid, signal.SIGTERM)
+                bots[bot_name]['status'] = 'stopped'
+                bots[bot_name]['pid'] = None
+                save_data('bots.json', bots)
+                bot.answer_callback_query(call.id, f"🛑 Бот {bot_name} остановлен.")
+            except Exception as e:
+                bot.answer_callback_query(call.id, f"Ошибка при остановке бота {bot_name}: {e}")
+        else:
+            bot.answer_callback_query(call.id, f"❌ PID не найден для бота {bot_name}.")
+    else:
+        bot.answer_callback_query(call.id, f"❌ Бот {bot_name} не запущен.")
+
+def show_running_bots(message):
+    bots = load_data('bots.json')
+    running_bots = {name: info for name, info in bots.items() if info.get('status') == 'running'}
+
+    if not running_bots:
+        bot.reply_to(message, "🔍 Нет запущенных ботов.")
+        return
+
+    bot_list = '\n'.join(running_bots.keys())
+    bot.reply_to(message, f"📋 Запущенные боты:\n{bot_list}")
+
 def load_data(filename):
-    if not os.path.exists(filename):
+    try:
+        with open(filename, 'r') as f:
+            return json.load(f)
+    except (FileNotFoundError, json.JSONDecodeError):
         return {}
-    with open(filename, 'r') as file:
-        try:
-            return json.load(file)
-        except json.JSONDecodeError:
-            return {}  # Если файл пуст или некорректен, возвращаем пустой словарь
 
 def save_data(filename, data):
-    with open(filename, 'w') as file:
-        json.dump(data, file, indent=4)
+    with open(filename, 'w') as f:
+        json.dump(data, f, indent=4)
 
-# Основной цикл обработки сообщений
-bot.polling(none_stop=True, timeout=60)
+bot.polling(none_stop=True)
