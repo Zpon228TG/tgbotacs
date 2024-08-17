@@ -39,10 +39,15 @@ def add_user(user_id):
         save_data(USERS_FILE, users_data)
 
 def add_tokens(user_id, tokens):
-    users_data[user_id]['tokens'].extend(tokens)
-    users_data[user_id]['hold'] += 0.01 * len(tokens)
-    users_data[user_id]['total_tokens'] += len(tokens)
-    save_data(USERS_FILE, users_data)
+    unique_tokens = [token for token in tokens if token not in tokens_data]
+    if unique_tokens:
+        users_data[user_id]['tokens'].extend(unique_tokens)
+        users_data[user_id]['hold'] += 0.01 * len(unique_tokens)
+        users_data[user_id]['total_tokens'] += len(unique_tokens)
+        tokens_data.update({token: user_id for token in unique_tokens})
+        save_data(USERS_FILE, users_data)
+        save_data(TOKENS_FILE, tokens_data)
+    return len(unique_tokens)
 
 def approve_tokens(user_id, count):
     users_data[user_id]['balance'] += 0.01 * count
@@ -95,27 +100,33 @@ def handle_docs(message):
         file_info = bot.get_file(message.document.file_id)
         file = bot.download_file(file_info.file_path)
         tokens = file.decode('utf-8').splitlines()
-        add_tokens(user_id, tokens)
-        bot.send_message(user_id, f"Токены загружены. На проверке: {len(tokens)} токенов. 💰 Ваш баланс будет обновлен после проверки.")
+        count = add_tokens(user_id, tokens)
+        if count > 0:
+            bot.send_message(message.chat.id, f"Токены загружены. На проверке: {count} токенов. 💰 Ваш баланс будет обновлен после проверки.")
+        else:
+            bot.send_message(message.chat.id, "Все токены уже существуют.")
     else:
         bot.send_message(message.chat.id, "Пожалуйста, отправьте текстовый файл (.txt).")
 
 @bot.message_handler(func=lambda message: message.text == "Через бота")
 def upload_tokens_via_bot(message):
-    bot.send_message(message.chat.id, "Введите токены по одному (максимум 5). Когда закончите, введите 'Готово'.")
+    bot.send_message(message.chat.id, "Введите токены по одному (максимум 15). Когда закончите, введите 'Готово'.")
     bot.register_next_step_handler(message, collect_tokens, [])
 
 def collect_tokens(message, tokens):
-    if message.text.lower() == 'готово' or len(tokens) == 5:
+    if message.text.lower() == 'готово' or len(tokens) == 15:
         if tokens:
-            add_tokens(str(message.chat.id), tokens)
-            bot.send_message(message.chat.id, f"Токены загружены. На проверке: {len(tokens)} токенов. 💰 Ваш баланс будет обновлен после проверки.")
+            count = add_tokens(str(message.chat.id), tokens)
+            if count > 0:
+                bot.send_message(message.chat.id, f"Токены загружены. На проверке: {count} токенов. 💰 Ваш баланс будет обновлен после проверки.")
+            else:
+                bot.send_message(message.chat.id, "Все токены уже существуют.")
         else:
             bot.send_message(message.chat.id, "Вы не ввели ни одного токена.")
         bot.send_message(message.chat.id, "Выберите действие:", reply_markup=back_to_main_keyboard())
     else:
         tokens.append(message.text)
-        bot.send_message(message.chat.id, f"Токен {len(tokens)}/5 добавлен.")
+        bot.send_message(message.chat.id, f"Токен {len(tokens)}/15 добавлен.")
         bot.register_next_step_handler(message, collect_tokens, tokens)
 
 @bot.message_handler(func=lambda message: message.text == "💼 Профиль")
@@ -182,16 +193,15 @@ def confirm_withdrawal(message, payeer_address, balance):
 
 @bot.message_handler(func=lambda message: message.text == "🆘 Тех. поддержка")
 def support(message):
-    bot.send_message(message.chat.id, f"Связаться с тех. поддержкой: {SUPPORT_BOT_LINK}")
+    bot.send_message(message.chat.id, f"Если у вас есть вопросы, пожалуйста, свяжитесь с нашей тех. поддержкой: {SUPPORT_BOT_LINK}")
 
-# Админка
 @bot.message_handler(func=lambda message: message.text == "🔧 Админка" and str(message.chat.id) == ADMIN_ID)
-def admin_panel(message):
+def admin_menu(message):
     markup = types.ReplyKeyboardMarkup(resize_keyboard=True)
     markup.add("Проверить токены")
     markup.add("Скачать все токены")
     markup.add("🔙 Назад")
-    bot.send_message(message.chat.id, "Выберите действие:", reply_markup=markup)
+    bot.send_message(message.chat.id, "Админка", reply_markup=markup)
 
 @bot.message_handler(func=lambda message: message.text == "Проверить токены" and str(message.chat.id) == ADMIN_ID)
 def check_tokens(message):
@@ -244,9 +254,8 @@ def process_partial_approval(message, user_id):
 @bot.message_handler(func=lambda message: message.text == "Скачать все токены" and str(message.chat.id) == ADMIN_ID)
 def download_all_tokens(message):
     with open('all_tokens.txt', 'w') as file:
-        for user_id, user_data in users_data.items():
-            for token in user_data['tokens']:
-                file.write(f"{token}\n")
+        for token in tokens_data:
+            file.write(f"{token}\n")
     with open('all_tokens.txt', 'rb') as file:
         bot.send_document(message.chat.id, file)
     os.remove('all_tokens.txt')
