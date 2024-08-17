@@ -4,6 +4,7 @@ import random
 import string
 import os
 import subprocess
+import time
 from telebot import types
 
 # Токен вашего бота и ваш Telegram ID
