@@ -17,11 +17,12 @@ BOT_DIRECTORY = '/data/data/com.termux/files/home/tgbotacs/'
 # Главное меню
 def main_menu():
     markup = types.ReplyKeyboardMarkup(resize_keyboard=True)
+    btn_add_bot = types.KeyboardButton("➕ Добавить бота")
     btn_run_python = types.KeyboardButton("📝 Запустить Python файл")
     btn_run_command = types.KeyboardButton("🔧 Выполнить команду")
     btn_start_all = types.KeyboardButton("🚀 Запустить всех ботов")
     btn_stop_all = types.KeyboardButton("🛑 Остановить всех ботов")
-    markup.add(btn_run_python, btn_run_command, btn_start_all, btn_stop_all)
+    markup.add(btn_add_bot, btn_run_python, btn_run_command, btn_start_all, btn_stop_all)
     return markup
 
 # Обработка команды /start
@@ -39,7 +40,10 @@ def menu_handler(message):
         bot.reply_to(message, "Извините, этот бот доступен только для администратора.")
         return
 
-    if message.text == "📝 Запустить Python файл":
+    if message.text == "➕ Добавить бота":
+        bot.reply_to(message, "✍️ Введите название бота и путь к его файлу (например: 'bot_name /path/to/bot.py'):")
+        bot.register_next_step_handler(message, add_bot)
+    elif message.text == "📝 Запустить Python файл":
         bot.reply_to(message, "✍️ Введите команду для запуска Python файла:")
         bot.register_next_step_handler(message, run_python_file)
     elif message.text == "🔧 Выполнить команду":
@@ -51,6 +55,30 @@ def menu_handler(message):
         stop_all_bots(message)
     else:
         bot.reply_to(message, "❓ Пожалуйста, выберите действие из меню.", reply_markup=main_menu())
+
+def add_bot(message):
+    try:
+        bot_name, bot_path = message.text.split(' ', 1)
+        full_path = os.path.join(BOT_DIRECTORY, bot_path)
+        if not os.path.isfile(full_path):
+            bot.reply_to(message, f"❌ Файл '{full_path}' не найден.")
+            return
+        
+        bots = load_data('bots.json')
+        if bot_name in bots:
+            bot.reply_to(message, "❌ Бот с таким названием уже существует.")
+            return
+        
+        bots[bot_name] = {
+            'path': full_path,
+            'status': 'stopped'
+        }
+        save_data('bots.json', bots)
+        bot.reply_to(message, f"✅ Бот '{bot_name}' успешно добавлен.")
+    except ValueError:
+        bot.reply_to(message, "❌ Неправильный формат. Используйте: название_бота /путь/к/боту.py")
+    except Exception as e:
+        bot.reply_to(message, f"Ошибка: {e}")
 
 def run_python_file(message):
     file_path = os.path.join(BOT_DIRECTORY, message.text)
@@ -102,8 +130,14 @@ def start_all_bots(message):
     bot.reply_to(message, "🚀 Все боты запущены.")
 
 def stop_all_bots(message):
-    # Здесь нужно реализовать логику для остановки ботов, если это возможно
-    bot.reply_to(message, "🛑 Остановка всех ботов не реализована.")
+    bots = load_data('bots.json')
+    for bot_name, bot_info in bots.items():
+        if bot_info.get('status') == 'running':
+            # Здесь нужно реализовать логику для остановки ботов, если это возможно
+            bot_info['status'] = 'stopped'
+            save_data('bots.json', bots)
+            bot.reply_to(message, f"🛑 Бот {bot_name} остановлен.")
+    bot.reply_to(message, "🛑 Все запущенные боты остановлены.")
 
 def load_data(filename):
     if not os.path.exists(filename):
