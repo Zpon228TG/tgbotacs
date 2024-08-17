@@ -194,13 +194,16 @@ def process_payeer_address(message, amount):
     
     # Регулярное выражение для проверки допустимости адреса Payeer
     if re.match(r'^\d+$', payeer_address):
+        markup = types.InlineKeyboardMarkup()
+        markup.add(types.InlineKeyboardButton("✅ Выплачено", callback_data=f"paid_{user_id}_{amount}"))
+        markup.add(types.InlineKeyboardButton("❌ Отменить", callback_data=f"cancel_{user_id}_{amount}"))
         bot.send_message(
-            CHANNEL_ID,
+            message.chat.id,
             f"💵 Запрос на вывод средств\n"
             f"🆔 ID пользователя: {user_id}\n"
             f"💰 Сумма: {amount:.2f} рублей\n"
-            f"📩 Адрес Payeer: {payeer_address}\n"
-            f"✅ Действия: /paid_{user_id}_{amount} /cancel_{user_id}_{amount}"
+            f"📩 Адрес Payeer: {payeer_address}\n",
+            reply_markup=markup
         )
         bot.send_message(message.chat.id, "Запрос на вывод средств отправлен. Ожидайте обработки.")
         log_message(f"Запрос на вывод средств от пользователя {user_id}: {amount:.2f} рублей на адрес {payeer_address}.")
@@ -210,57 +213,74 @@ def process_payeer_address(message, amount):
 
 @bot.message_handler(func=lambda message: message.text == "🆘 Тех. поддержка")
 def support(message):
-    bot.send_message(message.chat.id, f"Если у вас возникли проблемы, обратитесь в тех. поддержку: {SUPPORT_BOT_LINK}", reply_markup=back_to_main_keyboard())
+    bot.send_message(message.chat.id, f"Если у вас возникли вопросы, обратитесь в тех. поддержку: {SUPPORT_BOT_LINK}")
 
-@bot.message_handler(func=lambda message: message.text == "🔧 Админка" and str(message.chat.id) == ADMIN_ID)
+@bot.message_handler(func=lambda message: message.text == "🔧 Админка")
 def admin_panel(message):
-    markup = types.ReplyKeyboardMarkup(resize_keyboard=True)
-    markup.add("✅ Проверка токенов")
-    markup.add("📋 Скачать все токены")
-    markup.add("🔙 Назад")
-    bot.send_message(message.chat.id, "Выберите действие:", reply_markup=markup)
-
-@bot.message_handler(func=lambda message: message.text == "✅ Проверка токенов" and str(message.chat.id) == ADMIN_ID)
-def check_tokens(message):
-    pending_tokens = {user_id: user_data['tokens'] for user_id, user_data in users_data.items() if user_data['tokens']}
-    if pending_tokens:
-        for user_id, tokens in pending_tokens.items():
-            token_list = "\n".join(tokens)
-            markup = types.InlineKeyboardMarkup()
-            markup.add(types.InlineKeyboardButton("Все токены подходят", callback_data=f"approve_{user_id}_{len(tokens)}"))
-            markup.add(types.InlineKeyboardButton("Не все подходят", callback_data=f"reject_{user_id}_{len(tokens)}"))
-            bot.send_message(message.chat.id, f"Пользователь ID: {user_id}\nТокены:\n{token_list}", reply_markup=markup)
+    if str(message.chat.id) == ADMIN_ID:
+        markup = types.ReplyKeyboardMarkup(resize_keyboard=True)
+        markup.add("📋 Проверить токены")
+        markup.add("📄 Скачать все токены")
+        markup.add("🔙 Назад")
+        bot.send_message(message.chat.id, "Выберите действие:", reply_markup=markup)
     else:
-        bot.send_message(message.chat.id, "Нет токенов на проверке.")
+        bot.send_message(message.chat.id, "Вы не авторизованы для доступа к админке.")
 
-@bot.message_handler(func=lambda message: message.text == "📋 Скачать все токены" and str(message.chat.id) == ADMIN_ID)
-def download_all_tokens(message):
-    with open('all_tokens.txt', 'w') as file:
-        for token in tokens_data:
-            file.write(f"{token}\n")
-    with open('all_tokens.txt', 'rb') as file:
-        bot.send_document(message.chat.id, file, caption="Все токены")
+@bot.message_handler(func=lambda message: message.text == "📋 Проверить токены")
+def check_tokens(message):
+    if str(message.chat.id) == ADMIN_ID:
+        markup = types.InlineKeyboardMarkup()
+        for user_id in users_data:
+            markup.add(types.InlineKeyboardButton(f"Пользователь {user_id}", callback_data=f"check_{user_id}"))
+        markup.add(types.InlineKeyboardButton("🔙 Назад", callback_data="back_to_admin"))
+        bot.send_message(message.chat.id, "Выберите пользователя для проверки токенов:", reply_markup=markup)
+    else:
+        bot.send_message(message.chat.id, "Вы не авторизованы для доступа к админке.")
 
-@bot.callback_query_handler(func=lambda call: call.data.startswith('approve_') or call.data.startswith('reject_'))
-def handle_token_approval(call):
-    action, user_id, count = call.data.split('_')
-    count = int(count)
-    if action == 'approve':
-        approve_tokens(user_id, count)
-        bot.send_message(call.message.chat.id, "Токены одобрены.")
-        log_message(f"Токены от пользователя {user_id} одобрены.")
-    elif action == 'reject':
-        reject_tokens(user_id, count)
-        bot.send_message(call.message.chat.id, "Токены отклонены.")
-        log_message(f"Токены от пользователя {user_id} отклонены.")
+@bot.callback_query_handler(func=lambda call: call.data.startswith("check_"))
+def check_user_tokens(call):
+    user_id = call.data.split("_")[1]
+    tokens = users_data.get(user_id, {}).get('tokens', [])
+    if tokens:
+        tokens_list = '\n'.join(tokens)
+        markup = types.InlineKeyboardMarkup()
+        markup.add(types.InlineKeyboardButton("✅ Все токены подходят", callback_data=f"approve_{user_id}_{len(tokens)}"))
+        markup.add(types.InlineKeyboardButton("❌ Не все токены подходят", callback_data=f"reject_{user_id}_{len(tokens)}"))
+        bot.send_message(
+            call.message.chat.id,
+            f"Токены пользователя {user_id}:\n{tokens_list}",
+            reply_markup=markup
+        )
+    else:
+        bot.send_message(call.message.chat.id, f"У пользователя {user_id} нет токенов на проверке.")
+
+@bot.callback_query_handler(func=lambda call: call.data.startswith("approve_"))
+def approve_tokens_callback(call):
+    user_id, count = call.data.split("_")[1], int(call.data.split("_")[2])
+    approve_tokens(user_id, count)
+    bot.send_message(call.message.chat.id, f"Токены пользователя {user_id} одобрены. {count} токенов учтены на балансе.")
+    log_message(f"Администратор одобрил {count} токенов пользователя {user_id}.")
+
+@bot.callback_query_handler(func=lambda call: call.data.startswith("reject_"))
+def reject_tokens_callback(call):
+    user_id, count = call.data.split("_")[1], int(call.data.split("_")[2])
+    reject_tokens(user_id, count)
+    bot.send_message(call.message.chat.id, f"Токены пользователя {user_id} отклонены. {count} токенов не учтены.")
+    log_message(f"Администратор отклонил {count} токенов пользователя {user_id}.")
+
+@bot.callback_query_handler(func=lambda call: call.data == "back_to_admin")
+def back_to_admin(call):
     bot.edit_message_text("Выберите действие:", call.message.chat.id, call.message.message_id, reply_markup=back_to_admin_keyboard())
 
-@bot.message_handler(func=lambda message: message.text == "🔙 Назад")
-def go_back(message):
-    user_id = str(message.chat.id)
-    if user_id == ADMIN_ID:
-        bot.send_message(message.chat.id, "Выберите действие:", reply_markup=admin_panel(message))
+@bot.message_handler(func=lambda message: message.text == "📄 Скачать все токены")
+def download_all_tokens(message):
+    if str(message.chat.id) == ADMIN_ID:
+        tokens_list = '\n'.join(tokens_data.keys())
+        with open('all_tokens.txt', 'w') as file:
+            file.write(tokens_list)
+        with open('all_tokens.txt', 'rb') as file:
+            bot.send_document(message.chat.id, file, caption="Список всех токенов.")
     else:
-        bot.send_message(message.chat.id, "Выберите действие:", reply_markup=main_keyboard(user_id))
+        bot.send_message(message.chat.id, "Вы не авторизованы для доступа к админке.")
 
 bot.polling()
