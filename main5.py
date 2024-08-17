@@ -41,7 +41,7 @@ def menu_handler(message):
         return
 
     if message.text == "➕ Добавить бота":
-        bot.reply_to(message, "✍️ Введите название бота и путь к его файлу (например: 'bot_name /path/to/bot.py'):")
+        bot.reply_to(message, "✍️ Введите название бота:")
         bot.register_next_step_handler(message, add_bot)
     elif message.text == "📝 Запустить Python файл":
         bot.reply_to(message, "✍️ Введите команду для запуска Python файла:")
@@ -57,31 +57,30 @@ def menu_handler(message):
         bot.reply_to(message, "❓ Пожалуйста, выберите действие из меню.", reply_markup=main_menu())
 
 def add_bot(message):
-    try:
-        bot_name, bot_path = message.text.split(' ', 1)
-        full_path = os.path.join(BOT_DIRECTORY, bot_path)
-        if not os.path.isfile(full_path):
-            bot.reply_to(message, f"❌ Файл '{full_path}' не найден.")
-            return
-        
-        bots = load_data('bots.json')
-        if bot_name in bots:
-            bot.reply_to(message, "❌ Бот с таким названием уже существует.")
-            return
-        
-        bots[bot_name] = {
-            'path': full_path,
-            'status': 'stopped'
-        }
-        save_data('bots.json', bots)
-        bot.reply_to(message, f"✅ Бот '{bot_name}' успешно добавлен.")
-    except ValueError:
-        bot.reply_to(message, "❌ Неправильный формат. Используйте: название_бота /путь/к/боту.py")
-    except Exception as e:
-        bot.reply_to(message, f"Ошибка: {e}")
+    bot_name = message.text.strip()
+    if not bot_name:
+        bot.reply_to(message, "❌ Название бота не может быть пустым.")
+        return
+
+    full_path = os.path.join(BOT_DIRECTORY, f'{bot_name}.py')
+    if not os.path.isfile(full_path):
+        bot.reply_to(message, f"❌ Файл '{full_path}' не найден.")
+        return
+    
+    bots = load_data('bots.json')
+    if bot_name in bots:
+        bot.reply_to(message, "❌ Бот с таким названием уже существует.")
+        return
+    
+    bots[bot_name] = {
+        'path': full_path,
+        'status': 'stopped'
+    }
+    save_data('bots.json', bots)
+    bot.reply_to(message, f"✅ Бот '{bot_name}' успешно добавлен.")
 
 def run_python_file(message):
-    file_path = os.path.join(BOT_DIRECTORY, message.text)
+    file_path = os.path.join(BOT_DIRECTORY, message.text.strip())
     if not os.path.isfile(file_path):
         bot.reply_to(message, f"❌ Файл '{file_path}' не найден.")
         return
@@ -96,7 +95,7 @@ def run_python_file(message):
         bot.reply_to(message, f"Ошибка при выполнении файла: {e}")
 
 def execute_command(message):
-    command = message.text
+    command = message.text.strip()
     try:
         result = subprocess.run(command, shell=True, capture_output=True, text=True)
         if result.returncode == 0:
@@ -113,20 +112,17 @@ def start_all_bots(message):
         return
     
     for bot_name, bot_info in bots.items():
-        if 'path' in bot_info:
-            bot_path = bot_info['path']
-            if os.path.isfile(bot_path):
-                try:
-                    subprocess.Popen(['python', bot_path])
-                    bot_info['status'] = 'running'
-                    save_data('bots.json', bots)
-                except Exception as e:
-                    bot.reply_to(message, f"Ошибка при запуске бота {bot_name}: {e}")
-            else:
-                bot.reply_to(message, f"❌ Бот {bot_name} с путем {bot_path} не найден.")
+        bot_path = bot_info.get('path')
+        if bot_path and os.path.isfile(bot_path):
+            try:
+                subprocess.Popen(['python', bot_path])
+                bot_info['status'] = 'running'
+                save_data('bots.json', bots)
+            except Exception as e:
+                bot.reply_to(message, f"Ошибка при запуске бота {bot_name}: {e}")
         else:
-            bot.reply_to(message, f"❌ Данные о боте {bot_name} некорректны.")
-
+            bot.reply_to(message, f"❌ Бот {bot_name} с путем {bot_path} не найден.")
+    
     bot.reply_to(message, "🚀 Все боты запущены.")
 
 def stop_all_bots(message):
