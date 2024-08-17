@@ -213,8 +213,6 @@ def confirm_withdrawal(call):
         amount = float(amount)
 
         if user_id in users_data:
-            users_data[user_id]['balance'] = 0.0  # Обновление баланса пользователя
-
             bot.send_message(user_id, "Выплата прошла успешно.")
             bot.send_message(user_id, "Выберите действие:", reply_markup=back_to_main_keyboard())
 
