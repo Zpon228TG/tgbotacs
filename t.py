@@ -42,9 +42,10 @@ def add_user(user_id):
         }
         save_data(USERS_FILE, users_data)
 
+
+
 def add_tokens(user_id, tokens):
-    if not isinstance(tokens_data, dict):
-        tokens_data = {}
+    global tokens_data
     unique_tokens = [token for token in tokens if token not in tokens_data]
     if unique_tokens:
         users_data[user_id]['tokens'].extend(unique_tokens)
