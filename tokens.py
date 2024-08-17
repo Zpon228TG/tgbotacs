@@ -42,6 +42,7 @@ def start(message):
         markup.add('➕ Добавить токены', '📋 Посмотреть токены')
         markup.add('❌ Удалить токен', '📊 Статистика')
         markup.add('🗑️ Удалить все токены', '💾 Скачать токены')
+        markup.add('📥 Загрузить токены из файла')  # Добавляем новую кнопку
         bot.send_message(message.chat.id, "Привет! Выберите действие:", reply_markup=markup)
     else:
         bot.send_message(message.chat.id, "У вас нет доступа к этому боту.")
@@ -136,6 +137,36 @@ def download_tokens(message):
     else:
         bot.send_message(message.chat.id, "У вас нет доступа к этому боту.")
 
+# Обработчик для загрузки токенов из файла
+@bot.message_handler(regexp="📥 Загрузить токены из файла")
+def request_file(message):
+    bot.send_message(message.chat.id, "Отправьте мне файл с токенами (.txt):")
+
+@bot.message_handler(content_types=['document'])
+def handle_document(message):
+    if message.from_user.id == ADMIN_ID:
+        file_info = bot.get_file(message.document.file_id)
+        downloaded_file = bot.download_file(file_info.file_path)
+        
+        # Преобразование содержимого файла в строку
+        file_content = downloaded_file.decode('utf-8')
+        tokens_from_file = file_content.splitlines()
+        
+        # Загрузка текущих токенов
+        existing_tokens = read_tokens()
+        existing_tokens_set = set(existing_tokens)
+        
+        # Проверка новых токенов и их добавление
+        new_tokens = set(tokens_from_file) - existing_tokens_set
+        if new_tokens:
+            existing_tokens.extend(new_tokens)
+            write_tokens(existing_tokens)
+            bot.send_message(message.chat.id, f"✅ Добавлено {len(new_tokens)} новых токенов. Всего токенов: {len(existing_tokens)}.")
+        else:
+            bot.send_message(message.chat.id, "⚠️ Все токены из файла уже были добавлены ранее.")
+    else:
+        bot.send_message(message.chat.id, "У вас нет доступа к этому боту.")
+
 while True:
     try:
         bot.polling(none_stop=True, timeout=60, long_polling_timeout=60)
@@ -143,7 +174,7 @@ while True:
         error_message = f"Ошибка: {e}"
         print(error_message)
         try:
-            bot.send_message(admin_id, error_message)  # Отправка сообщения об ошибке администратору
+            bot.send_message(ADMIN_ID, error_message)  # Отправка сообщения об ошибке администратору
         except Exception as send_error:
             print(f"Ошибка при отправке сообщения: {send_error}")
         time.sleep(15)
