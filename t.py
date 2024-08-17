@@ -9,7 +9,7 @@ SUPPORT_BOT_LINK = 'https://t.me/your_support_bot'
 TOKENS_FILE = 'tokens.json'
 USERS_FILE = 'users.json'
 ADMIN_ID = '6578018656'  # Ваш ID
-LOG_CHANNEL_ID = '@log_channel'  # Канал для логирования
+LOG_CHANNEL_ID = '@GameDevAssetsHub'  # Канал для логирования
 
 bot = telebot.TeleBot(API_TOKEN)
 
@@ -64,6 +64,16 @@ def reject_tokens(user_id, count):
     users_data[user_id]['tokens'] = []
     save_data(USERS_FILE, users_data)
     log_message(f"Отклонены {count} токенов для пользователя {user_id}.")
+
+def mark_as_paid(user_id, amount):
+    bot.send_message(user_id, f"Ваш запрос на вывод {amount:.2f} рублей был успешно обработан.")
+    log_message(f"Запрос на вывод {amount:.2f} рублей для пользователя {user_id} был успешно выплачен.")
+
+def cancel_withdrawal(user_id, amount):
+    users_data[user_id]['balance'] += amount
+    save_data(USERS_FILE, users_data)
+    bot.send_message(user_id, f"Запрос на вывод {amount:.2f} рублей был отменен. Сумма возвращена на ваш баланс.")
+    log_message(f"Запрос на вывод {amount:.2f} рублей для пользователя {user_id} был отменен и возвращен на баланс.")
 
 def main_keyboard(user_id):
     markup = types.ReplyKeyboardMarkup(resize_keyboard=True)
@@ -176,30 +186,31 @@ def process_withdrawal_amount(message):
     try:
         amount = float(message.text)
         if amount >= 5 and amount <= users_data.get(user_id, {}).get('balance', 0.0):
-            users_data[user_id]['balance'] -= amount
+            users_data[user_id]['pending_withdrawal'] = amount
             save_data(USERS_FILE, users_data)
 
             markup = types.ReplyKeyboardMarkup(resize_keyboard=True)
             markup.add("🔙 Назад")
-            bot.send_message(message.chat.id, f"Введите Payeer адрес для вывода {amount:.2f} рублей:", reply_markup=markup)
+            bot.send_message(message.chat.id, "Введите Payeer адрес для вывода:", reply_markup=markup)
             bot.register_next_step_handler(message, process_payeer_address, amount)
         else:
-            bot.send_message(message.chat.id, "Введите корректную сумму (минимум 5 рублей и не больше вашего баланса).")
+            bot.send_message(message.chat.id, "Введите корректную сумму.")
             bot.register_next_step_handler(message, process_withdrawal_amount)
     except ValueError:
-        bot.send_message(message.chat.id, "Введите корректное число.")
+        bot.send_message(message.chat.id, "Введите корректную сумму.")
         bot.register_next_step_handler(message, process_withdrawal_amount)
 
 def process_payeer_address(message, amount):
     user_id = str(message.chat.id)
     payeer_address = message.text
-    if payeer_address:
-        bot.send_message(
-            CHANNEL_ID,
-            f"💵 Запрос на вывод средств\n"
-            f"🆔 ID пользователя: {user_id}\n"
+
+    if '@' in payeer_address:
+        bot.send_message(ADMIN_ID, 
+            f"🔔 Новый запрос на вывод средств:\n"
+            f"🆔 Пользователь ID: {user_id}\n"
             f"💰 Сумма: {amount:.2f} рублей\n"
-            f"📧 Payeer адрес: {payeer_address}"
+            f"📧 Payeer адрес: {payeer_address}\n"
+            f"📋 Действия: /paid_{user_id}_{amount} /cancel_{user_id}_{amount}"
         )
         bot.send_message(message.chat.id, "Запрос на вывод средств отправлен. Ожидайте обработки.")
         log_message(f"Запрос на вывод средств от пользователя {user_id}: {amount:.2f} рублей на адрес {payeer_address}.")
@@ -269,5 +280,16 @@ def download_all_tokens(message):
 @bot.message_handler(func=lambda message: message.text == "🔙 Назад")
 def back(message):
     bot.send_message(message.chat.id, "Выберите действие:", reply_markup=main_keyboard(str(message.chat.id)))
+
+@bot.message_handler(commands=['paid', 'cancel'])
+def handle_admin_commands(message):
+    command, user_id, amount = message.text.split('_')
+    user_id = str(user_id)
+    amount = float(amount)
+    
+    if command == '/paid':
+        mark_as_paid(user_id, amount)
+    elif command == '/cancel':
+        cancel_withdrawal(user_id, amount)
 
 bot.polling(none_stop=True)
