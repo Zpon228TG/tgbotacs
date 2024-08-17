@@ -1,6 +1,7 @@
 import subprocess
 import os
 import json
+import signal
 import telebot
 from telebot import types
 
@@ -74,7 +75,8 @@ def add_bot(message):
     
     bots[bot_name] = {
         'path': full_path,
-        'status': 'stopped'
+        'status': 'stopped',
+        'pid': None  # Изначально PID отсутствует
     }
     save_data('bots.json', bots)
     bot.reply_to(message, f"✅ Бот '{bot_name}' успешно добавлен.")
@@ -116,8 +118,9 @@ def start_all_bots(message):
             bot_path = bot_info.get('path')
             if bot_path and os.path.isfile(bot_path):
                 try:
-                    subprocess.Popen(['python', bot_path])
+                    process = subprocess.Popen(['python', bot_path])
                     bot_info['status'] = 'running'
+                    bot_info['pid'] = process.pid  # Сохранение PID процесса
                     save_data('bots.json', bots)
                 except Exception as e:
                     bot.reply_to(message, f"Ошибка при запуске бота {bot_name}: {e}")
@@ -130,12 +133,27 @@ def start_all_bots(message):
 
 def stop_all_bots(message):
     bots = load_data('bots.json')
+    if not bots:
+        bot.reply_to(message, "🔍 Нет зарегистрированных ботов для остановки.")
+        return
+
     for bot_name, bot_info in bots.items():
         if isinstance(bot_info, dict) and bot_info.get('status') == 'running':
-            # Здесь нужно реализовать логику для остановки ботов, если это возможно
-            bot_info['status'] = 'stopped'
-            save_data('bots.json', bots)
-            bot.reply_to(message, f"🛑 Бот {bot_name} остановлен.")
+            pid = bot_info.get('pid')
+            if pid:
+                try:
+                    os.kill(pid, signal.SIGTERM)  # Остановка процесса по PID
+                    bot_info['status'] = 'stopped'
+                    bot_info['pid'] = None
+                    save_data('bots.json', bots)
+                    bot.reply_to(message, f"🛑 Бот {bot_name} остановлен.")
+                except Exception as e:
+                    bot.reply_to(message, f"Ошибка при остановке бота {bot_name}: {e}")
+            else:
+                bot.reply_to(message, f"❌ PID не найден для бота {bot_name}.")
+        else:
+            bot.reply_to(message, f"❌ Бот {bot_name} не запущен.")
+
     bot.reply_to(message, "🛑 Все запущенные боты остановлены.")
 
 def load_data(filename):
