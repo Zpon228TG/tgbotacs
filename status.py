@@ -2,7 +2,7 @@ import requests
 import telebot
 from telebot import types
 import time
-
+import os
 # Токен вашего бота и ваш Telegram ID
 TOKEN = '7231579579:AAHAIYua8pOsNGkUGKxp6zK_JIB0pkq9PAA'
 ADMIN_ID = 6578018656
