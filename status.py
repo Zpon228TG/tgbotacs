@@ -143,7 +143,7 @@ while True:
         time.sleep(15)
     btn_remove = types.KeyboardButton("❌ Удалить бота")
     markup.add(btn_online, btn_offline, btn_all, btn_add, btn_remove)
-    return markup
+    return 
 
 # Обработка команды /start
 @bot.message_handler(commands=['start'])
