@@ -22,7 +22,8 @@ def main_menu():
     markup = types.ReplyKeyboardMarkup(resize_keyboard=True)
     btn_run_code = types.KeyboardButton("📝 Запустить Python файл")
     btn_manage_bots = types.KeyboardButton("💻 Управление ботами")
-    markup.add(btn_run_code, btn_manage_bots)
+    btn_execute_command = types.KeyboardButton("💻 Выполнить команду")
+    markup.add(btn_run_code, btn_manage_bots, btn_execute_command)
     return markup
 
 # Функция для управления ботами
@@ -40,8 +41,8 @@ def find_file_by_name(filename):
     for directory in BOT_DIRECTORIES:
         potential_path = os.path.join(directory, filename)
         if os.path.isfile(potential_path):
-            return potential_path
-    return None
+            return potential_path, directory
+    return None, None
 
 # Функция для добавления бота
 def process_add_bot(message):
@@ -50,9 +51,9 @@ def process_add_bot(message):
         bot.reply_to(message, "❌ Название бота не может быть пустым.")
         return
 
-    bot_path = find_file_by_name(bot_name + '.py')
+    bot_path, directory = find_file_by_name(bot_name + '.py')
     if bot_path is None:
-        bot.reply_to(message, "❌ Бот с таким названием не найден в указанных директориях.")
+        bot.reply_to(message, f"❌ Бот с таким названием не найден в указанных директориях.\nИщем в следующих директориях:\n{', '.join(BOT_DIRECTORIES)}")
         return
 
     bots = load_data('bots.json')
@@ -100,18 +101,31 @@ def menu_handler(message):
     elif message.text == "🛑 Остановить всех ботов":
         stop_all_bots(message)
 
+    elif message.text == "💻 Выполнить команду":
+        msg = bot.reply_to(message, "✍️ Введите команду для выполнения:")
+        bot.register_next_step_handler(msg, process_execute_command)
+
     else:
         bot.reply_to(message, "❓ Пожалуйста, выберите действие из меню.", reply_markup=main_menu())
 
 # Обработка команды для запуска Python файла
 def process_run_python(message):
     command = message.text.strip()
-    bot_path = find_file_by_name(command)
+    bot_path, _ = find_file_by_name(command)
     if bot_path is None:
         bot.reply_to(message, "❌ Файл не найден.")
         return
-    
+
     result = execute_command(f"python {bot_path}")
+    if "Error" in result:
+        bot.reply_to(message, f"❌ Ошибка при выполнении:\n{result}")
+    else:
+        bot.reply_to(message, f"✅ Успешное выполнение:\n{result}")
+
+# Обработка команды для выполнения произвольной команды
+def process_execute_command(message):
+    command = message.text.strip()
+    result = execute_command(command)
     if "Error" in result:
         bot.reply_to(message, f"❌ Ошибка при выполнении:\n{result}")
     else:
@@ -137,7 +151,7 @@ def start_all_bots(message):
             if bot_info.get('status') == 'running':
                 results.append(f"Бот '{bot_name}' уже запущен.")
                 continue
-            
+
             try:
                 subprocess.Popen(['python', bot_info['path']], cwd=os.path.dirname(bot_info['path']))
                 bots[bot_name]['status'] = 'running'
@@ -159,7 +173,7 @@ def stop_all_bots(message):
             if bot_info.get('status') == 'stopped':
                 results.append(f"Бот '{bot_name}' уже остановлен.")
                 continue
-            
+
             try:
                 # Здесь необходимо остановить бот, если возможно
                 # Это может потребовать дополнительного механизма для отслеживания и управления процессами
