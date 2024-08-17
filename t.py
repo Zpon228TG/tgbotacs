@@ -60,28 +60,6 @@ def reject_tokens(user_id, count):
     users_data[user_id]['tokens'] = []
     save_data(USERS_FILE, users_data)
 
-def main_keyboard(user_id):
-    markup = types.ReplyKeyboardMarkup(resize_keyboard=True)
-    markup.add("📥 Загрузить токены")
-    markup.add("💼 Профиль")
-    markup.add("🆘 Тех. поддержка")
-    if user_id == ADMIN_ID:
-        markup.add("🔧 Админка")
-    return markup
-
-def back_to_main_keyboard():
-    markup = types.ReplyKeyboardMarkup(resize_keyboard=True)
-    markup.add("📥 Загрузить токены")
-    markup.add("💼 Профиль")
-    markup.add("🆘 Тех. поддержка")
-    return markup
-
-def back_to_admin_keyboard():
-    markup = types.ReplyKeyboardMarkup(resize_keyboard=True)
-    markup.add("🔧 Админка")
-    markup.add("🔙 Назад")
-    return markup
-
 def log_message(message):
     bot.send_message(LOG_CHANNEL_ID, message)
 
@@ -194,15 +172,16 @@ def process_payeer_address(message, amount):
     
     # Регулярное выражение для проверки допустимости адреса Payeer
     if re.match(r'^\d+$', payeer_address):
+        # Отправка запроса в канал с кнопками подтверждения и отмены
         markup = types.InlineKeyboardMarkup()
         markup.add(types.InlineKeyboardButton("✅ Выплачено", callback_data=f"paid_{user_id}_{amount}"))
         markup.add(types.InlineKeyboardButton("❌ Отменить", callback_data=f"cancel_{user_id}_{amount}"))
         bot.send_message(
-            message.chat.id,
+            CHANNEL_ID,
             f"💵 Запрос на вывод средств\n"
             f"🆔 ID пользователя: {user_id}\n"
             f"💰 Сумма: {amount:.2f} рублей\n"
-            f"📩 Адрес Payeer: {payeer_address}\n",
+            f"📩 Адрес Payeer: {payeer_address}",
             reply_markup=markup
         )
         bot.send_message(message.chat.id, "Запрос на вывод средств отправлен. Ожидайте обработки.")
@@ -270,7 +249,7 @@ def reject_tokens_callback(call):
 
 @bot.callback_query_handler(func=lambda call: call.data == "back_to_admin")
 def back_to_admin(call):
-    bot.edit_message_text("Выберите действие:", call.message.chat.id, call.message.message_id, reply_markup=back_to_admin_keyboard())
+    bot.edit_message_text("Выберите действие:", call.message.chat.id, call.message.message_id, reply_markup=admin_panel_keyboard())
 
 @bot.message_handler(func=lambda message: message.text == "📄 Скачать все токены")
 def download_all_tokens(message):
@@ -282,5 +261,11 @@ def download_all_tokens(message):
             bot.send_document(message.chat.id, file, caption="Список всех токенов.")
     else:
         bot.send_message(message.chat.id, "Вы не авторизованы для доступа к админке.")
+
+def admin_panel_keyboard():
+    markup = types.InlineKeyboardMarkup()
+    markup.add(types.InlineKeyboardButton("📋 Проверить токены", callback_data="check_tokens"))
+    markup.add(types.InlineKeyboardButton("📄 Скачать все токены", callback_data="download_all_tokens"))
+    return markup
 
 bot.polling()
