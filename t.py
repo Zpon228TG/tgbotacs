@@ -28,8 +28,9 @@ def save_data(file_name, data):
     with open(file_name, 'w') as file:
         json.dump(data, file, indent=4)
 
-tokens_data = load_data(TOKENS_FILE)
-users_data = load_data(USERS_FILE)
+# Загрузим данные
+tokens_data = load_data(TOKENS_FILE) or {}
+users_data = load_data(USERS_FILE) or {}
 
 def add_user(user_id):
     if user_id not in users_data:
@@ -42,6 +43,8 @@ def add_user(user_id):
         save_data(USERS_FILE, users_data)
 
 def add_tokens(user_id, tokens):
+    if not isinstance(tokens_data, dict):
+        tokens_data = {}
     unique_tokens = [token for token in tokens if token not in tokens_data]
     if unique_tokens:
         users_data[user_id]['tokens'].extend(unique_tokens)
@@ -226,6 +229,7 @@ def cancel_callback(call):
     _, user_id, amount, fee = call.data.split("_")
     amount, fee = float(amount), float(fee)
     users_data[user_id]['balance'] += amount  # Возвращаем деньги на баланс
+    users_data[user_id]['balance'] -= fee  # Уменьшаем холд на сумму комиссии
     save_data(USERS_FILE, users_data)
     
     bot.send_message(call.message.chat.id, "❌ Запрос на вывод средств отменен.")
