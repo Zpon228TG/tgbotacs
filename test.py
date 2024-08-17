@@ -176,6 +176,7 @@ def process_payeer_address(message):
     payeer_address = message.text
     user_id = str(message.chat.id)
     balance = users_data[user_id]['balance']
+    
     markup = types.InlineKeyboardMarkup()
     markup.add(types.InlineKeyboardButton("💸 Выплатить", callback_data="confirm_withdrawal"))
     markup.add(types.InlineKeyboardButton("❌ Отменить", callback_data="cancel_withdrawal"))
@@ -187,16 +188,18 @@ def confirm_withdrawal(call):
     balance = users_data[user_id]['balance']
     
     # Используем объект `call.message.reply_to_message` для получения текста сообщения
-    payeer_address = call.message.message_id  # Получаем Payeer адрес из сообщения, на которое был вызов кнопки
-    if call.message.reply_to_message:
+    payeer_address = ""
+    if call.message.reply_to_message and call.message.reply_to_message.text:
         payeer_address = call.message.reply_to_message.text.split('на адрес ')[-1].split('?')[0]
 
     bot.send_message(call.message.chat.id, "Ваш запрос отправлен на обработку.")
+    
+    # Отправка сообщения в канал админа
     bot.send_message(
-        CHANNEL_ID, 
-        f"💰 Запрос на вывод средств:\n"
+        ADMIN_ID,
+        f"💵 Запрос на вывод средств\n"
         f"🆔 ID пользователя: {user_id}\n"
-        f"💵 Сумма: {balance:.2f} рублей\n"
+        f"💰 Сумма: {balance:.2f} рублей\n"
         f"📩 Адрес Payeer: {payeer_address}"
     )
     
