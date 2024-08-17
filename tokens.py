@@ -1,6 +1,7 @@
 import telebot
 import json
 import os
+import time
 
 # Инициализация бота
 ADMIN_ID = 6578018656  # Замените на ваш Telegram ID
