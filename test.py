@@ -185,9 +185,12 @@ def process_payeer_address(message):
 def confirm_withdrawal(call):
     user_id = str(call.message.chat.id)
     balance = users_data[user_id]['balance']
-    # Получаем текст из сообщения, к которому привязана кнопка
-    payeer_address = call.message.reply_markup.inline_keyboard[0][0].text.split('на адрес ')[-1]
     
+    # Используем объект `call.message.reply_to_message` для получения текста сообщения
+    payeer_address = call.message.message_id  # Получаем Payeer адрес из сообщения, на которое был вызов кнопки
+    if call.message.reply_to_message:
+        payeer_address = call.message.reply_to_message.text.split('на адрес ')[-1].split('?')[0]
+
     bot.send_message(call.message.chat.id, "Ваш запрос отправлен на обработку.")
     bot.send_message(
         CHANNEL_ID, 
