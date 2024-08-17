@@ -194,8 +194,8 @@ def process_payeer_address(message, amount):
 
     payeer_address = message.text
     bot.send_message(message.chat.id, "Ваш запрос отправлен на обработку.")
-    
-    # Отправка сообщения в канал админа
+
+    # Отправляем запрос в канал
     bot.send_message(
         CHANNEL_ID,
         f"💵 Запрос на вывод средств\n"
@@ -216,17 +216,21 @@ def confirm_withdrawal(call):
         _, user_id, amount, payeer_address = call.data.split("_", 3)
         user_id = str(user_id)
         amount = float(amount)
-        users_data[user_id]['balance'] = 0.0  # Обновление баланса пользователя
 
-        # Отправка сообщения пользователю
-        bot.send_message(user_id, "Выплата прошла успешно.")
-        bot.send_message(user_id, "Выберите действие:", reply_markup=back_to_main_keyboard())
+        if user_id in users_data:
+            users_data[user_id]['balance'] = 0.0  # Обновление баланса пользователя
 
-        # Отправка сообщения в канал админа
-        bot.send_message(
-            ADMIN_ID,
-            f"Выплата {amount:.2f} рублей пользователю {user_id} на адрес {payeer_address} подтверждена."
-        )
+            # Отправка сообщения пользователю
+            bot.send_message(user_id, "Выплата прошла успешно.")
+            bot.send_message(user_id, "Выберите действие:", reply_markup=back_to_main_keyboard())
+
+            # Отправка сообщения в канал админа
+            bot.send_message(
+                ADMIN_ID,
+                f"Выплата {amount:.2f} рублей пользователю {user_id} на адрес {payeer_address} подтверждена."
+            )
+        else:
+            bot.send_message(call.message.chat.id, "Пользователь не найден.")
     except ValueError:
         bot.send_message(call.message.chat.id, "Произошла ошибка при обработке выплаты.")
 
