@@ -162,57 +162,83 @@ def withdraw_money(call):
     balance = users_data[user_id]['balance']
     if balance >= 5:
         markup = types.ReplyKeyboardMarkup(resize_keyboard=True)
-        markup.add("Отменить")
-        bot.send_message(call.message.chat.id, "Введите Payeer адрес:", reply_markup=markup)
-        bot.register_next_step_handler(call.message, process_payeer_address)
+        markup.add("🔙 Назад")
+        bot.send_message(call.message.chat.id, "Введите сумму для вывода (минимум 5 рублей):", reply_markup=markup)
+        bot.register_next_step_handler(call.message, process_withdrawal_amount)
     else:
         bot.send_message(call.message.chat.id, "Сумма для вывода должна быть не меньше 5 рублей.")
 
-def process_payeer_address(message):
-    if message.text == "Отменить":
-        bot.send_message(message.chat.id, "Запрос на вывод отменен.")
+def process_withdrawal_amount(message):
+    user_id = str(message.chat.id)
+    try:
+        amount = float(message.text)
+        if amount >= 5 and amount <= users_data[user_id]['balance']:
+            users_data[user_id]['balance'] -= amount
+            save_data(USERS_FILE, users_data)
+
+            markup = types.ReplyKeyboardMarkup(resize_keyboard=True)
+            markup.add("🔙 Назад")
+            bot.send_message(message.chat.id, f"Введите Payeer адрес для вывода {amount:.2f} рублей:", reply_markup=markup)
+            bot.register_next_step_handler(message, process_payeer_address, amount)
+        else:
+            bot.send_message(message.chat.id, "Введите корректную сумму (минимум 5 рублей и не больше вашего баланса).")
+            bot.register_next_step_handler(message, process_withdrawal_amount)
+    except ValueError:
+        bot.send_message(message.chat.id, "Введите корректное число.")
+        bot.register_next_step_handler(message, process_withdrawal_amount)
+
+def process_payeer_address(message, amount):
+    if message.text == "🔙 Назад":
+        bot.send_message(message.chat.id, "Запрос на вывод отменен.", reply_markup=back_to_main_keyboard())
         return
 
     payeer_address = message.text
-    user_id = str(message.chat.id)
-    balance = users_data[user_id]['balance']
-    
-    markup = types.InlineKeyboardMarkup()
-    markup.add(types.InlineKeyboardButton("💸 Выплатить", callback_data="confirm_withdrawal"))
-    markup.add(types.InlineKeyboardButton("❌ Отменить", callback_data="cancel_withdrawal"))
-    bot.send_message(message.chat.id, f"Вы хотите вывести {balance:.2f} рублей на адрес {payeer_address}?", reply_markup=markup)
-
-@bot.callback_query_handler(func=lambda call: call.data == "confirm_withdrawal")
-def confirm_withdrawal(call):
-    user_id = str(call.message.chat.id)
-    balance = users_data[user_id]['balance']
-    
-    # Используем объект `call.message.reply_to_message` для получения текста сообщения
-    payeer_address = ""
-    if call.message.reply_to_message and call.message.reply_to_message.text:
-        payeer_address = call.message.reply_to_message.text.split('на адрес ')[-1].split('?')[0]
-
-    bot.send_message(call.message.chat.id, "Ваш запрос отправлен на обработку.")
+    bot.send_message(message.chat.id, "Ваш запрос отправлен на обработку.")
     
     # Отправка сообщения в канал админа
     bot.send_message(
-        ADMIN_ID,
+        CHANNEL_ID,
         f"💵 Запрос на вывод средств\n"
-        f"🆔 ID пользователя: {user_id}\n"
-        f"💰 Сумма: {balance:.2f} рублей\n"
-        f"📩 Адрес Payeer: {payeer_address}"
+        f"🆔 ID пользователя: {message.chat.id}\n"
+        f"💰 Сумма: {amount:.2f} рублей\n"
+        f"📩 Адрес Payeer: {payeer_address}\n"
+        f"✅ Нажмите 'Выплачено', чтобы подтвердить выплату.\n"
+        f"🚫 Нажмите 'Отменить', чтобы отменить запрос.",
+        reply_markup=types.InlineKeyboardMarkup().add(
+            types.InlineKeyboardButton("✅ Выплачено", callback_data=f"confirm_withdrawal_{message.chat.id}_{amount}_{payeer_address}"),
+            types.InlineKeyboardButton("🚫 Отменить", callback_data=f"cancel_withdrawal_{message.chat.id}")
+        )
     )
-    
-    # Обновление баланса пользователя
-    users_data[user_id]['balance'] = 0.0
-    save_data(USERS_FILE, users_data)
-    bot.send_message(call.message.chat.id, "Выплата прошла успешно.")
-    bot.send_message(call.message.chat.id, "Выберите действие:", reply_markup=back_to_main_keyboard())
 
-@bot.callback_query_handler(func=lambda call: call.data == "cancel_withdrawal")
+@bot.callback_query_handler(func=lambda call: call.data.startswith("confirm_withdrawal"))
+def confirm_withdrawal(call):
+    try:
+        _, user_id, amount, payeer_address = call.data.split("_", 3)
+        user_id = str(user_id)
+        amount = float(amount)
+        users_data[user_id]['balance'] = 0.0  # Обновление баланса пользователя
+
+        # Отправка сообщения пользователю
+        bot.send_message(user_id, "Выплата прошла успешно.")
+        bot.send_message(user_id, "Выберите действие:", reply_markup=back_to_main_keyboard())
+
+        # Отправка сообщения в канал админа
+        bot.send_message(
+            ADMIN_ID,
+            f"Выплата {amount:.2f} рублей пользователю {user_id} на адрес {payeer_address} подтверждена."
+        )
+    except ValueError:
+        bot.send_message(call.message.chat.id, "Произошла ошибка при обработке выплаты.")
+
+@bot.callback_query_handler(func=lambda call: call.data.startswith("cancel_withdrawal"))
 def cancel_withdrawal(call):
-    bot.send_message(call.message.chat.id, "Запрос на вывод отменен.")
-    bot.send_message(call.message.chat.id, "Выберите действие:", reply_markup=back_to_main_keyboard())
+    try:
+        _, user_id = call.data.split("_", 1)
+        user_id = str(user_id)
+        bot.send_message(user_id, "Запрос на вывод отменен.")
+        bot.send_message(user_id, "Выберите действие:", reply_markup=back_to_main_keyboard())
+    except ValueError:
+        bot.send_message(call.message.chat.id, "Произошла ошибка при отмене запроса.")
 
 @bot.message_handler(func=lambda message: message.text == "🔧 Админка" and str(message.chat.id) == ADMIN_ID)
 def admin_menu(message):
