@@ -12,6 +12,9 @@ USERS_FILE = 'users.json'
 ADMIN_ID = '6578018656'  # Ваш ID
 LOG_CHANNEL_ID = '@GameDevAssetsHub'  # Канал для логирования
 
+# Процент комиссии на вывод
+WITHDRAWAL_FEE_PERCENT = 3
+
 bot = telebot.TeleBot(API_TOKEN)
 
 def load_data(file_name):
@@ -169,13 +172,18 @@ def process_withdrawal_amount(message):
     try:
         amount = float(message.text)
         if amount >= 5 and amount <= users_data.get(user_id, {}).get('balance', 0.0):
+            # Рассчитываем комиссию
+            fee = amount * (WITHDRAWAL_FEE_PERCENT / 100)
+            net_amount = amount - fee
+
             users_data[user_id]['balance'] -= amount
+            users_data[user_id]['hold'] -= amount
             save_data(USERS_FILE, users_data)
 
             markup = types.ReplyKeyboardMarkup(resize_keyboard=True)
             markup.add(types.KeyboardButton("🔙 Назад"))
-            bot.send_message(message.chat.id, f"Введите Payeer адрес для вывода {amount:.2f} рублей:", reply_markup=markup)
-            bot.register_next_step_handler(message, process_payeer_address, amount)
+            bot.send_message(message.chat.id, f"Введите Payeer адрес для вывода {net_amount:.2f} рублей (с учетом комиссии {fee:.2f} рублей):", reply_markup=markup)
+            bot.register_next_step_handler(message, process_payeer_address, net_amount)
         else:
             bot.send_message(message.chat.id, "Введите корректную сумму (минимум 5 рублей и не больше вашего баланса).")
             bot.register_next_step_handler(message, process_withdrawal_amount)
@@ -185,11 +193,8 @@ def process_withdrawal_amount(message):
 
 def process_payeer_address(message, amount):
     user_id = str(message.chat.id)
-    payeer_address = message.text
-    
-    # Регулярное выражение для проверки допустимости адреса Payeer
+    payeer_address = message.text.strip()
     if re.match(r'^\d+$', payeer_address):
-        # Отправка запроса в канал с кнопками подтверждения и отмены
         markup = types.InlineKeyboardMarkup()
         markup.add(types.InlineKeyboardButton("✅ Выплачено", callback_data=f"paid_{user_id}_{amount}"))
         markup.add(types.InlineKeyboardButton("❌ Отменить", callback_data=f"cancel_{user_id}_{amount}"))
@@ -206,6 +211,24 @@ def process_payeer_address(message, amount):
     else:
         bot.send_message(message.chat.id, "Пожалуйста, введите корректный адрес Payeer (только цифры).")
         bot.register_next_step_handler(message, process_payeer_address, amount)
+
+@bot.callback_query_handler(func=lambda call: call.data.startswith("paid_"))
+def paid_callback(call):
+    _, user_id, amount = call.data.split("_")
+    amount = float(amount)
+    bot.send_message(call.message.chat.id, f"✅ Успешно выплатили {amount:.2f} рублей на указанный адрес.")
+    bot.send_message(user_id, f"✅ Успешно выплатили {amount:.2f} рублей на указанный адрес.")
+    log_message(f"Выплата {amount:.2f} рублей успешно выполнена для пользователя {user_id}.")
+    bot.edit_message_text("Запрос на вывод средств был успешно выполнен.", call.message.chat.id, call.message.message_id)
+
+@bot.callback_query_handler(func=lambda call: call.data.startswith("cancel_"))
+def cancel_callback(call):
+    _, user_id, amount = call.data.split("_")
+    amount = float(amount)
+    bot.send_message(call.message.chat.id, "❌ Запрос на вывод средств отменен.")
+    bot.send_message(user_id, "❌ Запрос на вывод средств отменен.")
+    log_message(f"Запрос на вывод средств в размере {amount:.2f} рублей был отменен для пользователя {user_id}.")
+    bot.edit_message_text("Запрос на вывод средств был отменен.", call.message.chat.id, call.message.message_id)
 
 @bot.message_handler(func=lambda message: message.text == "🆘 Тех. поддержка")
 def support(message):
