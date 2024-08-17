@@ -5,11 +5,11 @@ import os
 
 API_TOKEN = '7024190964:AAEzgPV9RvoJMbBBShBvSo-K5yEIsq08D4I'
 CHANNEL_ID = '@GameDevAssetsHub'
-LOG_CHANNEL_ID = '@GameDevAssetsHub'  # Замените на ваш канал для логирования
 SUPPORT_BOT_LINK = 'https://t.me/your_support_bot'
 TOKENS_FILE = 'tokens.json'
 USERS_FILE = 'users.json'
 ADMIN_ID = '6578018656'  # Ваш ID
+LOG_CHANNEL_ID = '@log_channel'  # Канал для логирования
 
 bot = telebot.TeleBot(API_TOKEN)
 
@@ -24,54 +24,46 @@ def save_data(file_name, data):
     with open(file_name, 'w') as file:
         json.dump(data, file, indent=4)
 
-def log_action(message):
-    bot.send_message(LOG_CHANNEL_ID, message)
-
 tokens_data = load_data(TOKENS_FILE)
 users_data = load_data(USERS_FILE)
 
+def log_message(message):
+    bot.send_message(LOG_CHANNEL_ID, message)
+
 def add_user(user_id):
-    user_id_str = str(user_id)
-    if user_id_str not in users_data:
-        users_data[user_id_str] = {
+    if user_id not in users_data:
+        users_data[user_id] = {
             'balance': 0.0,
             'tokens': [],
             'hold': 0.0,
             'total_tokens': 0
         }
         save_data(USERS_FILE, users_data)
-        log_action(f"#NewUser - {user_id_str} запустил бота")
 
 def add_tokens(user_id, tokens):
-    user_id_str = str(user_id)
-    tokens_data = load_data(TOKENS_FILE)
     unique_tokens = [token for token in tokens if token not in tokens_data]
     if unique_tokens:
-        users_data[user_id_str]['tokens'].extend(unique_tokens)
-        users_data[user_id_str]['hold'] += 0.01 * len(unique_tokens)
-        users_data[user_id_str]['total_tokens'] += len(unique_tokens)
-        tokens_data.update({token: user_id_str for token in unique_tokens})
+        users_data[user_id]['tokens'].extend(unique_tokens)
+        users_data[user_id]['hold'] += 0.01 * len(unique_tokens)
+        users_data[user_id]['total_tokens'] += len(unique_tokens)
+        tokens_data.update({token: user_id for token in unique_tokens})
         save_data(USERS_FILE, users_data)
         save_data(TOKENS_FILE, tokens_data)
-        log_action(f"#TokenAdded - Пользователь {user_id_str} добавил {len(unique_tokens)} токенов")
+        log_message(f"Добавлены токены для пользователя {user_id}: {len(unique_tokens)} токенов.")
     return len(unique_tokens)
 
 def approve_tokens(user_id, count):
-    user_id_str = str(user_id)
-    if user_id_str in users_data:
-        users_data[user_id_str]['balance'] += 0.01 * count
-        users_data[user_id_str]['hold'] -= 0.01 * count
-        users_data[user_id_str]['tokens'] = []
-        save_data(USERS_FILE, users_data)
-        log_action(f"#TokensApproved - {user_id_str} одобрил {count} токенов")
+    users_data[user_id]['balance'] += 0.01 * count
+    users_data[user_id]['hold'] -= 0.01 * count
+    users_data[user_id]['tokens'] = []
+    save_data(USERS_FILE, users_data)
+    log_message(f"Одобрены {count} токенов для пользователя {user_id}.")
 
 def reject_tokens(user_id, count):
-    user_id_str = str(user_id)
-    if user_id_str in users_data:
-        users_data[user_id_str]['hold'] -= 0.01 * count
-        users_data[user_id_str]['tokens'] = []
-        save_data(USERS_FILE, users_data)
-        log_action(f"#TokensRejected - {user_id_str} отклонил {count} токенов")
+    users_data[user_id]['hold'] -= 0.01 * count
+    users_data[user_id]['tokens'] = []
+    save_data(USERS_FILE, users_data)
+    log_message(f"Отклонены {count} токенов для пользователя {user_id}.")
 
 def main_keyboard(user_id):
     markup = types.ReplyKeyboardMarkup(resize_keyboard=True)
@@ -97,7 +89,7 @@ def back_to_admin_keyboard():
 
 @bot.message_handler(commands=['start'])
 def start(message):
-    user_id = message.chat.id
+    user_id = str(message.chat.id)
     add_user(user_id)
     bot.send_message(user_id, "Привет! Выберите действие:", reply_markup=main_keyboard(user_id))
 
@@ -115,7 +107,7 @@ def upload_tokens_file(message):
 @bot.message_handler(content_types=['document'])
 def handle_docs(message):
     if message.document.mime_type == 'text/plain':
-        user_id = message.chat.id
+        user_id = str(message.chat.id)
         file_info = bot.get_file(message.document.file_id)
         file = bot.download_file(file_info.file_path)
         tokens = file.decode('utf-8').splitlines()
@@ -124,7 +116,6 @@ def handle_docs(message):
             bot.send_message(message.chat.id, f"Токены загружены. На проверке: {count} токенов. 💰 Ваш баланс будет обновлен после проверки.")
         else:
             bot.send_message(message.chat.id, "Все токены уже существуют.")
-        log_action(f"#TokensUploaded - Пользователь {user_id} загрузил файл с токенами")
     else:
         bot.send_message(message.chat.id, "Пожалуйста, отправьте текстовый файл (.txt).")
 
@@ -136,7 +127,7 @@ def upload_tokens_via_bot(message):
 def collect_tokens(message, tokens):
     if message.text.lower() == 'готово' or len(tokens) == 15:
         if tokens:
-            count = add_tokens(message.chat.id, tokens)
+            count = add_tokens(str(message.chat.id), tokens)
             if count > 0:
                 bot.send_message(message.chat.id, f"Токены загружены. На проверке: {count} токенов. 💰 Ваш баланс будет обновлен после проверки.")
             else:
@@ -151,8 +142,8 @@ def collect_tokens(message, tokens):
 
 @bot.message_handler(func=lambda message: message.text == "💼 Профиль")
 def profile(message):
-    user_id = message.chat.id
-    user_data = users_data.get(str(user_id), {})
+    user_id = str(message.chat.id)
+    user_data = users_data.get(user_id, {})
     balance = user_data.get('balance', 0.0)
     hold = user_data.get('hold', 0.0)
     total_tokens = user_data.get('total_tokens', 0)
@@ -170,8 +161,8 @@ def profile(message):
 
 @bot.callback_query_handler(func=lambda call: call.data == "withdraw")
 def withdraw_money(call):
-    user_id = call.message.chat.id
-    balance = users_data.get(str(user_id), {}).get('balance', 0.0)
+    user_id = str(call.message.chat.id)
+    balance = users_data.get(user_id, {}).get('balance', 0.0)
     if balance >= 5:
         markup = types.ReplyKeyboardMarkup(resize_keyboard=True)
         markup.add("🔙 Назад")
@@ -181,96 +172,102 @@ def withdraw_money(call):
         bot.send_message(call.message.chat.id, "Сумма для вывода должна быть не меньше 5 рублей.")
 
 def process_withdrawal_amount(message):
-    user_id = message.chat.id
+    user_id = str(message.chat.id)
     try:
         amount = float(message.text)
-        if amount >= 5 and amount <= users_data.get(str(user_id), {}).get('balance', 0.0):
-            bot.send_message(ADMIN_ID, f"Пользователь {user_id} запросил вывод {amount:.2f} рублей.")
-            bot.send_message(message.chat.id, "Запрос на вывод средств отправлен администратору.")
-            log_action(f"#WithdrawalRequested - Пользователь {user_id} запросил вывод {amount:.2f} рублей")
+        if amount >= 5 and amount <= users_data.get(user_id, {}).get('balance', 0.0):
+            users_data[user_id]['balance'] -= amount
+            save_data(USERS_FILE, users_data)
+
+            markup = types.ReplyKeyboardMarkup(resize_keyboard=True)
+            markup.add("🔙 Назад")
+            bot.send_message(message.chat.id, f"Введите Payeer адрес для вывода {amount:.2f} рублей:", reply_markup=markup)
+            bot.register_next_step_handler(message, process_payeer_address, amount)
         else:
-            bot.send_message(message.chat.id, "Введите корректную сумму для вывода.")
+            bot.send_message(message.chat.id, "Введите корректную сумму (минимум 5 рублей и не больше вашего баланса).")
             bot.register_next_step_handler(message, process_withdrawal_amount)
     except ValueError:
-        bot.send_message(message.chat.id, "Введите корректную сумму.")
+        bot.send_message(message.chat.id, "Введите корректное число.")
+        bot.register_next_step_handler(message, process_withdrawal_amount)
+
+def process_payeer_address(message, amount):
+    user_id = str(message.chat.id)
+    payeer_address = message.text
+    if payeer_address:
+        bot.send_message(
+            CHANNEL_ID,
+            f"💵 Запрос на вывод средств\n"
+            f"🆔 ID пользователя: {user_id}\n"
+            f"💰 Сумма: {amount:.2f} рублей\n"
+            f"📧 Payeer адрес: {payeer_address}"
+        )
+        bot.send_message(message.chat.id, "Запрос на вывод средств отправлен. Ожидайте обработки.")
+        log_message(f"Запрос на вывод средств от пользователя {user_id}: {amount:.2f} рублей на адрес {payeer_address}.")
+    else:
+        bot.send_message(message.chat.id, "Введите корректный Payeer адрес.")
+        bot.register_next_step_handler(message, process_payeer_address, amount)
 
 @bot.message_handler(func=lambda message: message.text == "🆘 Тех. поддержка")
-def tech_support(message):
-    bot.send_message(message.chat.id, f"Для получения технической поддержки, перейдите по [ссылке]({SUPPORT_BOT_LINK})", parse_mode='Markdown')
+def support(message):
+    bot.send_message(message.chat.id, f"Свяжитесь с тех. поддержкой: {SUPPORT_BOT_LINK}", reply_markup=back_to_main_keyboard())
 
 @bot.message_handler(func=lambda message: message.text == "🔧 Админка")
 def admin_panel(message):
     if str(message.chat.id) == ADMIN_ID:
         markup = types.ReplyKeyboardMarkup(resize_keyboard=True)
-        markup.add("🔄 Проверка токенов")
-        markup.add("📜 Скачать все токены")
+        markup.add("📋 Ожидающие проверки токены")
+        markup.add("📥 Скачать все токены")
         markup.add("🔙 Назад")
         bot.send_message(message.chat.id, "Выберите действие:", reply_markup=markup)
     else:
-        bot.send_message(message.chat.id, "У вас нет доступа к админке.")
+        bot.send_message(message.chat.id, "Вы не являетесь администратором.")
 
-@bot.message_handler(func=lambda message: message.text == "🔄 Проверка токенов")
-def check_tokens(message):
+@bot.message_handler(func=lambda message: message.text == "📋 Ожидающие проверки токены")
+def review_pending_tokens(message):
     if str(message.chat.id) == ADMIN_ID:
-        for user_id_str, user_data in users_data.items():
-            tokens = user_data['tokens']
-            if tokens:
+        pending_tokens = {user_id: data['tokens'] for user_id, data in users_data.items() if data['tokens']}
+        if pending_tokens:
+            for user_id, tokens in pending_tokens.items():
+                tokens_count = len(tokens)
                 markup = types.InlineKeyboardMarkup()
-                markup.add(types.InlineKeyboardButton("✅ Все токены подходят", callback_data=f"approve_{user_id_str}"))
-                markup.add(types.InlineKeyboardButton("❌ Не все подходят", callback_data=f"reject_{user_id_str}"))
-                bot.send_message(message.chat.id, f"Пользователь {user_id_str} ждет проверки токенов.", reply_markup=markup)
-            else:
-                bot.send_message(message.chat.id, f"У пользователя {user_id_str} нет токенов на проверке.")
-    else:
-        bot.send_message(message.chat.id, "У вас нет доступа к админке.")
-
-@bot.callback_query_handler(func=lambda call: call.data.startswith("approve_"))
-def approve_tokens_callback(call):
-    user_id_str = call.data.split("_")[1]
-    approve_tokens(user_id_str, len(users_data[user_id_str]['tokens']))
-    bot.answer_callback_query(call.id, "Токены одобрены.")
-    bot.send_message(call.message.chat.id, f"Токены пользователя {user_id_str} одобрены.")
-    log_action(f"#TokensApprovedByAdmin - {user_id_str} одобрен")
-
-@bot.callback_query_handler(func=lambda call: call.data.startswith("reject_"))
-def reject_tokens_callback(call):
-    user_id_str = call.data.split("_")[1]
-    markup = types.ReplyKeyboardMarkup(resize_keyboard=True)
-    markup.add("🔙 Назад")
-    bot.send_message(call.message.chat.id, "Введите количество подходящих токенов для учета на баланс пользователя:", reply_markup=markup)
-    bot.register_next_step_handler(call.message, process_rejection_amount, user_id_str)
-
-def process_rejection_amount(message, user_id_str):
-    try:
-        count = int(message.text)
-        if count >= 0:
-            reject_tokens(user_id_str, count)
-            bot.send_message(message.chat.id, f"Токены пользователя {user_id_str} отклонены. {count} токенов учтено.")
-            log_action(f"#TokensRejectedByAdmin - {user_id_str} отклонен. Учтено {count} токенов")
+                markup.add(
+                    types.InlineKeyboardButton(f"Одобрить ({tokens_count})", callback_data=f"approve_{user_id}_{tokens_count}"),
+                    types.InlineKeyboardButton(f"Отклонить ({tokens_count})", callback_data=f"reject_{user_id}_{tokens_count}")
+                )
+                bot.send_message(message.chat.id, f"Токены пользователя {user_id}: {tokens_count} токенов.", reply_markup=markup)
         else:
-            bot.send_message(message.chat.id, "Введите корректное количество токенов.")
-            bot.register_next_step_handler(message, process_rejection_amount, user_id_str)
-    except ValueError:
-        bot.send_message(message.chat.id, "Введите корректное количество токенов.")
-        bot.register_next_step_handler(message, process_rejection_amount, user_id_str)
+            bot.send_message(message.chat.id, "Нет токенов, ожидающих проверки.")
+    else:
+        bot.send_message(message.chat.id, "Вы не являетесь администратором.")
 
-@bot.message_handler(func=lambda message: message.text == "📜 Скачать все токены")
+@bot.callback_query_handler(func=lambda call: call.data.startswith('approve_'))
+def approve_tokens_callback(call):
+    _, user_id, count = call.data.split('_')
+    approve_tokens(user_id, int(count))
+    bot.send_message(call.message.chat.id, f"Токены пользователя {user_id} одобрены.")
+    log_message(f"Токены пользователя {user_id} одобрены (количество: {count}).")
+
+@bot.callback_query_handler(func=lambda call: call.data.startswith('reject_'))
+def reject_tokens_callback(call):
+    _, user_id, count = call.data.split('_')
+    reject_tokens(user_id, int(count))
+    bot.send_message(call.message.chat.id, f"Токены пользователя {user_id} отклонены.")
+    log_message(f"Токены пользователя {user_id} отклонены (количество: {count}).")
+
+@bot.message_handler(func=lambda message: message.text == "📥 Скачать все токены")
 def download_all_tokens(message):
     if str(message.chat.id) == ADMIN_ID:
-        if tokens_data:
-            with open('all_tokens.txt', 'w') as file:
-                for token, user_id in tokens_data.items():
-                    file.write(f"{token}\n")
-            with open('all_tokens.txt', 'rb') as file:
-                bot.send_document(message.chat.id, file, caption="Все токены")
-            log_action("#TokensFileDownloaded - Все токены скачаны администратором")
-        else:
-            bot.send_message(message.chat.id, "Нет токенов для скачивания.")
+        with open('all_tokens.txt', 'w') as file:
+            for token, user_id in tokens_data.items():
+                file.write(f"{token} - {user_id}\n")
+        with open('all_tokens.txt', 'rb') as file:
+            bot.send_document(message.chat.id, file)
+        log_message("Все токены были скачаны администратором.")
     else:
-        bot.send_message(message.chat.id, "У вас нет доступа к админке.")
+        bot.send_message(message.chat.id, "Вы не являетесь администратором.")
 
 @bot.message_handler(func=lambda message: message.text == "🔙 Назад")
 def back(message):
-    bot.send_message(message.chat.id, "Выберите действие:", reply_markup=main_keyboard(message.chat.id))
+    bot.send_message(message.chat.id, "Выберите действие:", reply_markup=main_keyboard(str(message.chat.id)))
 
-bot.polling()
+bot.polling(none_stop=True)
