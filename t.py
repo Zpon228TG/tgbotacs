@@ -111,6 +111,7 @@ def handle_docs(message):
             bot.send_message(message.chat.id, f"Токены загружены. На проверке: {count} токенов. 💰 Ваш баланс будет обновлен после проверки.")
         else:
             bot.send_message(message.chat.id, "Все токены уже существуют.")
+        bot.send_message(message.chat.id, "Выберите действие:", reply_markup=back_to_main_keyboard())
     else:
         bot.send_message(message.chat.id, "Пожалуйста, отправьте текстовый файл (.txt).")
 
@@ -175,8 +176,8 @@ def process_withdrawal_amount(message):
             fee = amount * (WITHDRAWAL_FEE_PERCENT / 100)
             net_amount = amount - fee
 
-            # Убираем средства с холда и проверяем, что сумма на балансе
-            users_data[user_id]['hold'] -= amount
+            # Убираем средства с баланса и не затрагиваем холд
+            users_data[user_id]['balance'] -= amount
             save_data(USERS_FILE, users_data)
             
             markup = types.ReplyKeyboardMarkup(resize_keyboard=True)
@@ -187,7 +188,7 @@ def process_withdrawal_amount(message):
             bot.send_message(message.chat.id, "Введите корректную сумму (минимум 5 рублей и не больше вашего баланса).")
             bot.register_next_step_handler(message, process_withdrawal_amount)
     except ValueError:
-        bot.send_message(message.chat.id, "Введите корректное число.")
+        bot.send_message(message.chat.id, "Введите корректную сумму.")
         bot.register_next_step_handler(message, process_withdrawal_amount)
 
 def process_payeer_address(message, net_amount, fee):
@@ -225,7 +226,6 @@ def cancel_callback(call):
     _, user_id, amount, fee = call.data.split("_")
     amount, fee = float(amount), float(fee)
     users_data[user_id]['balance'] += amount  # Возвращаем деньги на баланс
-    users_data[user_id]['hold'] += amount  # Возвращаем деньги в холд
     save_data(USERS_FILE, users_data)
     
     bot.send_message(call.message.chat.id, "❌ Запрос на вывод средств отменен.")
@@ -240,10 +240,9 @@ def support(message):
 @bot.message_handler(func=lambda message: message.text == "🔧 Админка")
 def admin_panel(message):
     if str(message.chat.id) == ADMIN_ID:
-        markup = types.ReplyKeyboardMarkup(resize_keyboard=True)
-        markup.add("📋 Проверить токены")
-        markup.add("📄 Скачать все токены")
-        markup.add("🔙 Назад")
+        markup = types.InlineKeyboardMarkup()
+        markup.add(types.InlineKeyboardButton("📋 Проверить токены", callback_data="check_tokens"))
+        markup.add(types.InlineKeyboardButton("📄 Скачать все токены", callback_data="download_all_tokens"))
         bot.send_message(message.chat.id, "Выберите действие:", reply_markup=markup)
     else:
         bot.send_message(message.chat.id, "Вы не авторизованы для доступа к админке.")
