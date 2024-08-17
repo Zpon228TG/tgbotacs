@@ -5,7 +5,7 @@ from telebot import types
 
 API_TOKEN = '7024190964:AAEzgPV9RvoJMbBBShBvSo-K5yEIsq08D4I'
 CHANNEL_ID = '@GameDevAssetsHub'
-LOG_CHANNEL_ID = '@GameDevAssetsHub'  # Замените на ваш канал для логирования
+LOG_CHANNEL_ID = '@YourLogChannelID'  # Замените на ваш канал для логирования
 SUPPORT_BOT_LINK = 'https://t.me/your_support_bot'
 TOKENS_FILE = 'tokens.json'
 USERS_FILE = 'users.json'
