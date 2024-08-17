@@ -1,176 +1,138 @@
+import requests
 import telebot
 from telebot import types
-import requests
-import json
-import os
 import time
 
-# Ваш токен бота
+# Токен вашего бота и ваш Telegram ID
 TOKEN = '7231579579:AAHAIYua8pOsNGkUGKxp6zK_JIB0pkq9PAA'
 ADMIN_ID = 6578018656
 
+# Инициализация бота
 bot = telebot.TeleBot(TOKEN)
 
-# Создаем файл bot_tokens.json, если его нет
-if not os.path.exists('bot_tokens.json'):
-    with open('bot_tokens.json', 'w') as file:
-        json.dump([], file)
-
-# Функция для проверки статуса бота
+# Функция для проверки статуса бота через отправку команды
 def check_bot_status(bot_token):
-    url = f'https://api.telegram.org/bot{bot_token}/getMe'
     try:
-        response = requests.get(url)
+        # Отправляем тестовое сообщение другому боту
+        test_message = {"chat_id": ADMIN_ID, "text": "/start"}
+        response = requests.post(f'https://api.telegram.org/bot{bot_token}/sendMessage', data=test_message)
+        
+        # Проверяем, удалось ли отправить сообщение
         if response.status_code == 200:
-            bot_info = response.json()
-            if bot_info['ok']:
-                return bot_info['result']['username'], '🟢 Онлайн'
-        return None, '🔴 Офлайн'
-    except:
-        return None, '🔴 Офлайн'
+            return True
+        else:
+            return False
+    except requests.RequestException:
+        return False
 
-# Функция для перезапуска бота
-def restart_bot():
-    bot.send_message(ADMIN_ID, "⚠️ Бот отключается...")
-    time.sleep(3)
-    try:
-        bot.polling(none_stop=True)
-        bot.send_message(ADMIN_ID, "✅ Бот успешно запущен.")
-    except Exception as e:
-        bot.send_message(ADMIN_ID, f"❌ Бот не удалось запустить. Ошибка: {e}")
+# Главное меню
+def main_menu():
+    markup = types.ReplyKeyboardMarkup(resize_keyboard=True)
+    btn_online = types.KeyboardButton("🟢 Боты онлайн")
+    btn_offline = types.KeyboardButton("🔴 Боты офлайн")
+    btn_all = types.KeyboardButton("🔍 Все боты")
+    btn_add = types.KeyboardButton("➕ Добавить бота")
+    btn_remove = types.KeyboardButton("❌ Удалить бота")
+    markup.add(btn_online, btn_offline, btn_all, btn_add, btn_remove)
+    return markup
 
-# Обработчик команды /start
+# Обработка команды /start
 @bot.message_handler(commands=['start'])
-def start_command(message):
-    if message.from_user.id == ADMIN_ID:
-        markup = types.ReplyKeyboardMarkup(resize_keyboard=True)
-        btn1 = types.KeyboardButton("🟢 Боты онлайн")
-        btn2 = types.KeyboardButton("🔴 Боты оффлайн")
-        btn3 = types.KeyboardButton("📝 Все боты")
-        btn4 = types.KeyboardButton("➕ Добавить бота")
-        btn5 = types.KeyboardButton("➖ Удалить бота")
-        markup.add(btn1, btn2, btn3, btn4, btn5)
-        bot.send_message(message.chat.id, "Выберите действие:", reply_markup=markup)
-    else:
-        bot.send_message(message.chat.id, "У вас нет доступа к этому боту.")
-
-# Обработчик текстовых сообщений
-@bot.message_handler(func=lambda message: True)
-def handle_message(message):
+def send_welcome(message):
     if message.from_user.id != ADMIN_ID:
+        bot.reply_to(message, "Извините, этот бот доступен только для администратора.")
+        return
+    bot.reply_to(message, "👋 Привет! Выберите действие:", reply_markup=main_menu())
+
+# Обработка нажатий на кнопки
+@bot.message_handler(func=lambda message: True)
+def menu_handler(message):
+    if message.from_user.id != ADMIN_ID:
+        bot.reply_to(message, "Извините, этот бот доступен только для администратора.")
         return
 
     if message.text == "🟢 Боты онлайн":
         show_online_bots(message)
-
-    elif message.text == "🔴 Боты оффлайн":
+    elif message.text == "🔴 Боты офлайн":
         show_offline_bots(message)
-
-    elif message.text == "📝 Все боты":
+    elif message.text == "🔍 Все боты":
         show_all_bots(message)
-
     elif message.text == "➕ Добавить бота":
-        bot.send_message(message.chat.id, "Отправьте токен бота, чтобы добавить его.")
-        bot.register_next_step_handler(message, add_bot_token)
-
-    elif message.text == "➖ Удалить бота":
-        bot.send_message(message.chat.id, "Отправьте токен бота, чтобы удалить его.")
-        bot.register_next_step_handler(message, delete_bot_token)
+        add_bot(message)
+    elif message.text == "❌ Удалить бота":
+        remove_bot(message)
+    else:
+        bot.reply_to(message, "❓ Пожалуйста, выберите действие из меню.", reply_markup=main_menu())
 
 def show_online_bots(message):
-    online_bots = []
-    offline_bots = []
-
-    with open('bot_tokens.json', 'r') as file:
-        bot_tokens = json.load(file)
-
-    for bot_token in bot_tokens:
-        username, status = check_bot_status(bot_token)
-        if status == '🟢 Онлайн':
-            online_bots.append(f'@{username} - {status}')
-        else:
-            offline_bots.append(f'@{username if username else "Неизвестно"} - {status}')
-
-    if online_bots:
-        bot.send_message(message.chat.id, "\n".join(online_bots))
+    bots = load_data('bots.json')
+    online_bots = [bot_token for bot_token, status in bots.items() if status == 'online']
+    if not online_bots:
+        bot.reply_to(message, "🟢 Нет онлайн ботов.")
     else:
-        bot.send_message(message.chat.id, "Нет ботов онлайн. 🟢")
+        bot.reply_to(message, "🟢 Онлайн боты:\n" + "\n".join(online_bots))
 
 def show_offline_bots(message):
-    offline_bots = []
-
-    with open('bot_tokens.json', 'r') as file:
-        bot_tokens = json.load(file)
-
-    for bot_token in bot_tokens:
-        username, status = check_bot_status(bot_token)
-        if status == '🔴 Офлайн':
-            offline_bots.append(f'@{username if username else "Неизвестно"} - {status}')
-
-    if offline_bots:
-        bot.send_message(message.chat.id, "\n".join(offline_bots))
+    bots = load_data('bots.json')
+    offline_bots = [bot_token for bot_token, status in bots.items() if status == 'offline']
+    if not offline_bots:
+        bot.reply_to(message, "🔴 Нет оффлайн ботов.")
     else:
-        bot.send_message(message.chat.id, "Нет ботов оффлайн. 🔴")
+        bot.reply_to(message, "🔴 Оффлайн боты:\n" + "\n".join(offline_bots))
 
 def show_all_bots(message):
-    all_bots = []
+    bots = load_data('bots.json')
+    response = "\n".join([f"Токен: {bot_token}, Статус: {status}" for bot_token, status in bots.items()])
+    bot.reply_to(message, response if response else "🔍 Нет зарегистрированных ботов.")
 
-    with open('bot_tokens.json', 'r') as file:
-        bot_tokens = json.load(file)
+def add_bot(message):
+    msg = bot.reply_to(message, "✍️ Введите токен бота для добавления:")
+    bot.register_next_step_handler(msg, process_add_bot)
 
-    for bot_token in bot_tokens:
-        username, status = check_bot_status(bot_token)
-        all_bots.append(f'@{username if username else "Неизвестно"} - {status}')
+def process_add_bot(message):
+    bot_token = message.text
+    if not check_bot_status(bot_token):
+        bot.reply_to(message, "❌ Бот не отвечает на команды. Проверьте токен.")
+        return
 
-    if all_bots:
-        bot.send_message(message.chat.id, "\n".join(all_bots))
+    bots = load_data('bots.json')
+    bots[bot_token] = 'online'
+    save_data('bots.json', bots)
+    bot.reply_to(message, "✅ Бот добавлен и отмечен как онлайн.")
+
+def remove_bot(message):
+    msg = bot.reply_to(message, "✍️ Введите токен бота для удаления:")
+    bot.register_next_step_handler(msg, process_remove_bot)
+
+def process_remove_bot(message):
+    bot_token = message.text
+    bots = load_data('bots.json')
+    if bot_token in bots:
+        del bots[bot_token]
+        save_data('bots.json', bots)
+        bot.reply_to(message, "✅ Бот удален.")
     else:
-        bot.send_message(message.chat.id, "Нет добавленных ботов. 📝")
+        bot.reply_to(message, "❌ Бот с таким токеном не найден.")
 
-def add_bot_token(message):
-    bot_token = message.text
+def load_data(filename):
+    if not os.path.exists(filename):
+        return {}
+    with open(filename, 'r') as file:
+        return json.load(file)
 
-    with open('bot_tokens.json', 'r') as file:
-        bot_tokens = json.load(file)
+def save_data(filename, data):
+    with open(filename, 'w') as file:
+        json.dump(data, file, indent=4)
 
-    if bot_token in bot_tokens:
-        bot.send_message(message.chat.id, "Этот бот уже добавлен.")
-        return
-
-    bot_tokens.append(bot_token)
-
-    with open('bot_tokens.json', 'w') as file:
-        json.dump(bot_tokens, file, indent=4)
-
-    bot.send_message(message.chat.id, "Бот успешно добавлен. 🟢")
-
-def delete_bot_token(message):
-    bot_token = message.text
-
-    with open('bot_tokens.json', 'r') as file:
-        bot_tokens = json.load(file)
-
-    if bot_token not in bot_tokens:
-        bot.send_message(message.chat.id, "Этот бот не найден.")
-        return
-
-    bot_tokens.remove(bot_token)
-
-    with open('bot_tokens.json', 'w') as file:
-        json.dump(bot_tokens, file, indent=4)
-
-    bot.send_message(message.chat.id, "Бот успешно удален. ➖")
-
-# Запуск бота с обработкой возможного отключения
+# Основной цикл обработки сообщений
 while True:
     try:
-        bot.polling(none_stop=True)
+        bot.polling(none_stop=True, timeout=60, long_polling_timeout=60)
     except Exception as e:
-        bot.send_message(ADMIN_ID, "⚠️ Бот отключился. Пытаюсь перезапустить...")
-        time.sleep(5)  # Ожидание перед повторным запуском
+        error_message = f"Ошибка: {e}"
+        print(error_message)
         try:
-            bot.polling(none_stop=True)
-            bot.send_message(ADMIN_ID, "✅ Бот успешно запущен.")
-        except Exception as e:
-            bot.send_message(ADMIN_ID, f"❌ Бот не удалось запустить. Ошибка: {e}")
-            break
+            bot.send_message(ADMIN_ID, error_message)  # Отправка сообщения об ошибке администратору
+        except Exception as send_error:
+            print(f"Ошибка при отправке сообщения: {send_error}")
+        time.sleep(15)
