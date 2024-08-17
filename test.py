@@ -12,7 +12,6 @@ ADMIN_ID = '6578018656'  # Ваш ID
 
 bot = telebot.TeleBot(API_TOKEN)
 
-# Функции для работы с файлами
 def load_data(file_name):
     if os.path.exists(file_name):
         with open(file_name, 'r') as file:
@@ -24,7 +23,6 @@ def save_data(file_name, data):
     with open(file_name, 'w') as file:
         json.dump(data, file, indent=4)
 
-# Инициализация данных
 tokens_data = load_data(TOKENS_FILE)
 users_data = load_data(USERS_FILE)
 
@@ -60,7 +58,6 @@ def reject_tokens(user_id, count):
     users_data[user_id]['tokens'] = []
     save_data(USERS_FILE, users_data)
 
-# Клавиатуры
 def main_keyboard(user_id):
     markup = types.ReplyKeyboardMarkup(resize_keyboard=True)
     markup.add("📥 Загрузить токены")
@@ -83,7 +80,6 @@ def back_to_admin_keyboard():
     markup.add("🔙 Назад")
     return markup
 
-# Обработчики команд
 @bot.message_handler(commands=['start'])
 def start(message):
     user_id = str(message.chat.id)
@@ -188,24 +184,20 @@ def process_withdrawal_amount(message):
         bot.register_next_step_handler(message, process_withdrawal_amount)
 
 def process_payeer_address(message, amount):
-    if message.text == "🔙 Назад":
-        bot.send_message(message.chat.id, "Выберите действие:", reply_markup=back_to_main_keyboard())
-        return
-    
+    user_id = str(message.chat.id)
     payeer_address = message.text
     if payeer_address:
-        # Отправка запроса в канал админа
         bot.send_message(
             CHANNEL_ID,
             f"💵 Запрос на вывод средств\n"
-            f"🆔 ID пользователя: {message.chat.id}\n"
+            f"🆔 ID пользователя: {user_id}\n"
             f"💰 Сумма: {amount:.2f} рублей\n"
             f"📩 Адрес Payeer: {payeer_address}\n"
             f"✅ Нажмите 'Выплачено', чтобы подтвердить выплату.\n"
             f"🚫 Нажмите 'Отменить', чтобы отменить запрос.",
             reply_markup=types.InlineKeyboardMarkup().add(
-                types.InlineKeyboardButton("✅ Выплачено", callback_data=f"confirm_withdrawal_{message.chat.id}_{amount}_{payeer_address}"),
-                types.InlineKeyboardButton("🚫 Отменить", callback_data=f"cancel_withdrawal_{message.chat.id}")
+                types.InlineKeyboardButton("✅ Выплачено", callback_data=f"confirm_withdrawal_{user_id}_{amount}_{payeer_address}"),
+                types.InlineKeyboardButton("🚫 Отменить", callback_data=f"cancel_withdrawal_{user_id}")
             )
         )
         bot.send_message(message.chat.id, "Запрос на вывод отправлен на обработку.")
@@ -223,11 +215,9 @@ def confirm_withdrawal(call):
         if user_id in users_data:
             users_data[user_id]['balance'] = 0.0  # Обновление баланса пользователя
 
-            # Отправка сообщения пользователю
             bot.send_message(user_id, "Выплата прошла успешно.")
             bot.send_message(user_id, "Выберите действие:", reply_markup=back_to_main_keyboard())
 
-            # Отправка сообщения в канал админа
             bot.send_message(
                 ADMIN_ID,
                 f"Выплата {amount:.2f} рублей пользователю {user_id} на адрес {payeer_address} подтверждена."
