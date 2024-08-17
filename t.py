@@ -54,7 +54,6 @@ def add_tokens(user_id, tokens):
 
 def approve_tokens(user_id, count):
     users_data[user_id]['balance'] += 0.01 * count
-    users_data[user_id]['hold'] -= 0.01 * count
     users_data[user_id]['tokens'] = []
     save_data(USERS_FILE, users_data)
 
@@ -176,14 +175,14 @@ def process_withdrawal_amount(message):
             fee = amount * (WITHDRAWAL_FEE_PERCENT / 100)
             net_amount = amount - fee
 
-            users_data[user_id]['balance'] -= amount
+            # Убираем средства с холда и проверяем, что сумма на балансе
             users_data[user_id]['hold'] -= amount
             save_data(USERS_FILE, users_data)
-
+            
             markup = types.ReplyKeyboardMarkup(resize_keyboard=True)
             markup.add(types.KeyboardButton("🔙 Назад"))
             bot.send_message(message.chat.id, f"Введите Payeer адрес для вывода {net_amount:.2f} рублей (с учетом комиссии {fee:.2f} рублей):", reply_markup=markup)
-            bot.register_next_step_handler(message, process_payeer_address, net_amount)
+            bot.register_next_step_handler(message, process_payeer_address, net_amount, fee)
         else:
             bot.send_message(message.chat.id, "Введите корректную сумму (минимум 5 рублей и не больше вашего баланса).")
             bot.register_next_step_handler(message, process_withdrawal_amount)
@@ -191,40 +190,44 @@ def process_withdrawal_amount(message):
         bot.send_message(message.chat.id, "Введите корректное число.")
         bot.register_next_step_handler(message, process_withdrawal_amount)
 
-def process_payeer_address(message, amount):
+def process_payeer_address(message, net_amount, fee):
     user_id = str(message.chat.id)
     payeer_address = message.text.strip()
     if re.match(r'^\d+$', payeer_address):
         markup = types.InlineKeyboardMarkup()
-        markup.add(types.InlineKeyboardButton("✅ Выплачено", callback_data=f"paid_{user_id}_{amount}"))
-        markup.add(types.InlineKeyboardButton("❌ Отменить", callback_data=f"cancel_{user_id}_{amount}"))
+        markup.add(types.InlineKeyboardButton("✅ Выплачено", callback_data=f"paid_{user_id}_{net_amount}"))
+        markup.add(types.InlineKeyboardButton("❌ Отменить", callback_data=f"cancel_{user_id}_{net_amount}_{fee}"))
         bot.send_message(
             CHANNEL_ID,
             f"💵 Запрос на вывод средств\n"
             f"🆔 ID пользователя: {user_id}\n"
-            f"💰 Сумма: {amount:.2f} рублей\n"
+            f"💰 Сумма: {net_amount:.2f} рублей\n"
             f"📩 Адрес Payeer: {payeer_address}\n",
             reply_markup=markup
         )
-        log_message(f"Запрос на вывод средств: ID пользователя {user_id}, Сумма {amount:.2f}, Адрес Payeer {payeer_address}.")
+        log_message(f"Запрос на вывод средств: ID пользователя {user_id}, Сумма {net_amount:.2f}, Адрес Payeer {payeer_address}.")
         bot.send_message(message.chat.id, "Запрос на вывод отправлен. Ожидайте подтверждения.")
     else:
         bot.send_message(message.chat.id, "Пожалуйста, введите корректный адрес Payeer (только цифры).")
-        bot.register_next_step_handler(message, process_payeer_address, amount)
+        bot.register_next_step_handler(message, process_payeer_address, net_amount, fee)
 
 @bot.callback_query_handler(func=lambda call: call.data.startswith("paid_"))
 def paid_callback(call):
-    _, user_id, amount = call.data.split("_")
-    amount = float(amount)
-    bot.send_message(call.message.chat.id, f"✅ Успешно выплатили {amount:.2f} рублей на указанный адрес.")
-    bot.send_message(user_id, f"✅ Успешно выплатили {amount:.2f} рублей на указанный адрес.")
-    log_message(f"Выплата {amount:.2f} рублей успешно выполнена для пользователя {user_id}.")
+    _, user_id, net_amount = call.data.split("_")
+    net_amount = float(net_amount)
+    bot.send_message(call.message.chat.id, f"✅ Успешно выплатили {net_amount:.2f} рублей на указанный адрес.")
+    bot.send_message(user_id, f"✅ Успешно выплатили {net_amount:.2f} рублей на указанный адрес.")
+    log_message(f"Выплата {net_amount:.2f} рублей успешно выполнена для пользователя {user_id}.")
     bot.edit_message_text("Запрос на вывод средств был успешно выполнен.", call.message.chat.id, call.message.message_id)
 
 @bot.callback_query_handler(func=lambda call: call.data.startswith("cancel_"))
 def cancel_callback(call):
-    _, user_id, amount = call.data.split("_")
-    amount = float(amount)
+    _, user_id, amount, fee = call.data.split("_")
+    amount, fee = float(amount), float(fee)
+    users_data[user_id]['balance'] += amount  # Возвращаем деньги на баланс
+    users_data[user_id]['hold'] += amount  # Возвращаем деньги в холд
+    save_data(USERS_FILE, users_data)
+    
     bot.send_message(call.message.chat.id, "❌ Запрос на вывод средств отменен.")
     bot.send_message(user_id, "❌ Запрос на вывод средств отменен.")
     log_message(f"Запрос на вывод средств в размере {amount:.2f} рублей был отменен для пользователя {user_id}.")
