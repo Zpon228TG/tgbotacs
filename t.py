@@ -63,6 +63,22 @@ def reject_tokens(user_id, count):
 def log_message(message):
     bot.send_message(LOG_CHANNEL_ID, message)
 
+def main_keyboard(user_id):
+    markup = types.ReplyKeyboardMarkup(resize_keyboard=True)
+    markup.add(types.KeyboardButton("📥 Загрузить токены"))
+    markup.add(types.KeyboardButton("💼 Профиль"))
+    markup.add(types.KeyboardButton("🆘 Тех. поддержка"))
+    if user_id == ADMIN_ID:
+        markup.add(types.KeyboardButton("🔧 Админка"))
+    return markup
+
+def back_to_main_keyboard():
+    markup = types.ReplyKeyboardMarkup(resize_keyboard=True)
+    markup.add(types.KeyboardButton("📥 Загрузить токены"))
+    markup.add(types.KeyboardButton("💼 Профиль"))
+    markup.add(types.KeyboardButton("🆘 Тех. поддержка"))
+    return markup
+
 @bot.message_handler(commands=['start'])
 def start(message):
     user_id = str(message.chat.id)
@@ -72,8 +88,9 @@ def start(message):
 @bot.message_handler(func=lambda message: message.text == "📥 Загрузить токены")
 def upload_tokens(message):
     markup = types.ReplyKeyboardMarkup(resize_keyboard=True)
-    markup.add("Через файл", "Через бота")
-    markup.add("🔙 Назад")
+    markup.add(types.KeyboardButton("Через файл"))
+    markup.add(types.KeyboardButton("Через бота"))
+    markup.add(types.KeyboardButton("🔙 Назад"))
     bot.send_message(message.chat.id, "Как вы хотите загрузить токены?", reply_markup=markup)
 
 @bot.message_handler(func=lambda message: message.text == "Через файл")
@@ -141,7 +158,7 @@ def withdraw_money(call):
     balance = users_data.get(user_id, {}).get('balance', 0.0)
     if balance >= 5:
         markup = types.ReplyKeyboardMarkup(resize_keyboard=True)
-        markup.add("🔙 Назад")
+        markup.add(types.KeyboardButton("🔙 Назад"))
         bot.send_message(call.message.chat.id, "Введите сумму для вывода (минимум 5 рублей):", reply_markup=markup)
         bot.register_next_step_handler(call.message, process_withdrawal_amount)
     else:
@@ -156,7 +173,7 @@ def process_withdrawal_amount(message):
             save_data(USERS_FILE, users_data)
 
             markup = types.ReplyKeyboardMarkup(resize_keyboard=True)
-            markup.add("🔙 Назад")
+            markup.add(types.KeyboardButton("🔙 Назад"))
             bot.send_message(message.chat.id, f"Введите Payeer адрес для вывода {amount:.2f} рублей:", reply_markup=markup)
             bot.register_next_step_handler(message, process_payeer_address, amount)
         else:
@@ -181,13 +198,13 @@ def process_payeer_address(message, amount):
             f"💵 Запрос на вывод средств\n"
             f"🆔 ID пользователя: {user_id}\n"
             f"💰 Сумма: {amount:.2f} рублей\n"
-            f"📩 Адрес Payeer: {payeer_address}",
+            f"📩 Адрес Payeer: {payeer_address}\n",
             reply_markup=markup
         )
-        bot.send_message(message.chat.id, "Запрос на вывод средств отправлен. Ожидайте обработки.")
-        log_message(f"Запрос на вывод средств от пользователя {user_id}: {amount:.2f} рублей на адрес {payeer_address}.")
+        log_message(f"Запрос на вывод средств: ID пользователя {user_id}, Сумма {amount:.2f}, Адрес Payeer {payeer_address}.")
+        bot.send_message(message.chat.id, "Запрос на вывод отправлен. Ожидайте подтверждения.")
     else:
-        bot.send_message(message.chat.id, "Введите корректный Payeer адрес (только цифры).")
+        bot.send_message(message.chat.id, "Пожалуйста, введите корректный адрес Payeer (только цифры).")
         bot.register_next_step_handler(message, process_payeer_address, amount)
 
 @bot.message_handler(func=lambda message: message.text == "🆘 Тех. поддержка")
