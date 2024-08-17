@@ -6,7 +6,7 @@ import os
 import json
 
 # Токен вашего бота и ваш Telegram ID
-TOKEN = '7264644656:AAEXeOL9SV0W-ykoOicic6Ec-9uaDHgg-6k'
+TOKEN = '7359279162:AAGjFuIZaCxp1TvsY8vVyw5ryah3vTPXTm4'
 ADMIN_ID = 6578018656
 
 # Инициализация бота
