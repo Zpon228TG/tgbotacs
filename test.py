@@ -77,6 +77,12 @@ def back_to_main_keyboard():
     markup.add("🆘 Тех. поддержка")
     return markup
 
+def back_to_admin_keyboard():
+    markup = types.ReplyKeyboardMarkup(resize_keyboard=True)
+    markup.add("🔧 Админка")
+    markup.add("🔙 Назад")
+    return markup
+
 # Обработчики команд
 @bot.message_handler(commands=['start'])
 def start(message):
@@ -179,16 +185,19 @@ def process_payeer_address(message):
 def confirm_withdrawal(call):
     user_id = str(call.message.chat.id)
     balance = users_data[user_id]['balance']
-    payeer_address = call.message.reply_to_message.text.split('на адрес ')[-1].split('?')[0]
+    # Получаем текст из сообщения, к которому привязана кнопка
+    payeer_address = call.message.reply_markup.inline_keyboard[0][0].text.split('на адрес ')[-1]
     
     bot.send_message(call.message.chat.id, "Ваш запрос отправлен на обработку.")
     bot.send_message(
         CHANNEL_ID, 
-        f"💰 Запрос на вывод средств:\n\n"
-        f"🆔 ID: {user_id}\n"
-        f"💸 Сумма: {balance:.2f} рублей\n"
-        f"📤 Payeer: {payeer_address}"
+        f"💰 Запрос на вывод средств:\n"
+        f"🆔 ID пользователя: {user_id}\n"
+        f"💵 Сумма: {balance:.2f} рублей\n"
+        f"📩 Адрес Payeer: {payeer_address}"
     )
+    
+    # Обновление баланса пользователя
     users_data[user_id]['balance'] = 0.0
     save_data(USERS_FILE, users_data)
     bot.send_message(call.message.chat.id, "Выплата прошла успешно.")
