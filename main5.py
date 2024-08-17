@@ -5,9 +5,8 @@ import telebot
 from telebot import types
 
 # Токен вашего бота и ваш Telegram ID
-# Токен вашего бота и ваш Telegram ID
 TOKEN = '7375465921:AAFxiuhZ6YlTTZVcjwKFUhJA7XUPfM9oLyY'
-ADMIN_ID = 6578018656  # Замените на ваш Telegram ID
+ADMIN_ID = 6578018656
 
 # Список директорий для поиска ботов
 BOT_DIRECTORIES = [
@@ -106,8 +105,13 @@ def menu_handler(message):
 
 # Обработка команды для запуска Python файла
 def process_run_python(message):
-    command = message.text
-    result = execute_command(command)
+    command = message.text.strip()
+    bot_path = find_file_by_name(command)
+    if bot_path is None:
+        bot.reply_to(message, "❌ Файл не найден.")
+        return
+    
+    result = execute_command(f"python {bot_path}")
     if "Error" in result:
         bot.reply_to(message, f"❌ Ошибка при выполнении:\n{result}")
     else:
