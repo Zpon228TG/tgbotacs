@@ -38,6 +38,11 @@ def send_welcome(message):
         return
     bot.reply_to(message, "👋 Привет! Выберите действие:", reply_markup=main_menu())
 
+
+# Функция для перезапуска бота
+def restart_bot():
+    subprocess.Popen(['python', 'bot.py'])
+
 # Обработка нажатий на кнопки
 @bot.message_handler(func=lambda message: True)
 def menu_handler(message):
@@ -233,5 +238,14 @@ def save_data(filename, data):
     with open(filename, 'w') as file:
         json.dump(data, file, indent=4)
 
-# Запуск бота
-bot.polling()
+while True:
+    try:
+        bot.polling(none_stop=True, timeout=60, long_polling_timeout=60)
+    except Exception as e:
+        error_message = f"Ошибка: {e}"
+        print(error_message)
+        try:
+            bot.send_message(admin_id, error_message)  # Отправка сообщения об ошибке администратору
+        except Exception as send_error:
+            print(f"Ошибка при отправке сообщения: {send_error}")
+        time.sleep(15)
