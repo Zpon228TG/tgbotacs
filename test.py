@@ -59,7 +59,7 @@ def main_keyboard():
     markup.add("📥 Загрузить токены")
     markup.add("💼 Профиль")
     markup.add("🆘 Тех. поддержка")
-    if str(message.chat.id) == ADMIN_ID:
+    if str(bot.get_me().id) == ADMIN_ID:  # Проверка админа в этой функции
         markup.add("🔧 Админка")
     return markup
 
@@ -68,7 +68,7 @@ def back_to_main_keyboard():
     markup.add("📥 Загрузить токены")
     markup.add("💼 Профиль")
     markup.add("🆘 Тех. поддержка")
-    if str(message.chat.id) == ADMIN_ID:
+    if str(bot.get_me().id) == ADMIN_ID:  # Проверка админа в этой функции
         markup.add("🔧 Админка")
     return markup
 
@@ -190,13 +190,10 @@ def support(message):
 @bot.message_handler(func=lambda message: message.text == "🔧 Админка" and str(message.chat.id) == ADMIN_ID)
 def admin_panel(message):
     markup = types.ReplyKeyboardMarkup(resize_keyboard=True)
-    markup.add("Проверить токены", "Скачать все токены")
+    markup.add("Проверить токены")
+    markup.add("Скачать все токены")
     markup.add("🔙 Назад")
-    bot.send_message(message.chat.id, "Админка", reply_markup=markup)
-
-@bot.message_handler(func=lambda message: message.text == "🔙 Назад")
-def go_back(message):
-    bot.send_message(message.chat.id, "Выберите действие:", reply_markup=back_to_main_keyboard())
+    bot.send_message(message.chat.id, "Выберите действие:", reply_markup=markup)
 
 @bot.message_handler(func=lambda message: message.text == "Проверить токены" and str(message.chat.id) == ADMIN_ID)
 def check_tokens(message):
