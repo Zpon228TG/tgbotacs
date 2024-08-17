@@ -159,7 +159,7 @@ def profile(message):
 @bot.callback_query_handler(func=lambda call: call.data == "withdraw")
 def withdraw_money(call):
     user_id = str(call.message.chat.id)
-    balance = users_data[user_id]['balance']
+    balance = users_data.get(user_id, {}).get('balance', 0.0)
     if balance >= 5:
         markup = types.ReplyKeyboardMarkup(resize_keyboard=True)
         markup.add("🔙 Назад")
@@ -172,7 +172,7 @@ def process_withdrawal_amount(message):
     user_id = str(message.chat.id)
     try:
         amount = float(message.text)
-        if amount >= 5 and amount <= users_data[user_id]['balance']:
+        if amount >= 5 and amount <= users_data.get(user_id, {}).get('balance', 0.0):
             users_data[user_id]['balance'] -= amount
             save_data(USERS_FILE, users_data)
 
@@ -189,26 +189,29 @@ def process_withdrawal_amount(message):
 
 def process_payeer_address(message, amount):
     if message.text == "🔙 Назад":
-        bot.send_message(message.chat.id, "Запрос на вывод отменен.", reply_markup=back_to_main_keyboard())
+        bot.send_message(message.chat.id, "Выберите действие:", reply_markup=back_to_main_keyboard())
         return
-
+    
     payeer_address = message.text
-    bot.send_message(message.chat.id, "Ваш запрос отправлен на обработку.")
-
-    # Отправляем запрос в канал
-    bot.send_message(
-        CHANNEL_ID,
-        f"💵 Запрос на вывод средств\n"
-        f"🆔 ID пользователя: {message.chat.id}\n"
-        f"💰 Сумма: {amount:.2f} рублей\n"
-        f"📩 Адрес Payeer: {payeer_address}\n"
-        f"✅ Нажмите 'Выплачено', чтобы подтвердить выплату.\n"
-        f"🚫 Нажмите 'Отменить', чтобы отменить запрос.",
-        reply_markup=types.InlineKeyboardMarkup().add(
-            types.InlineKeyboardButton("✅ Выплачено", callback_data=f"confirm_withdrawal_{message.chat.id}_{amount}_{payeer_address}"),
-            types.InlineKeyboardButton("🚫 Отменить", callback_data=f"cancel_withdrawal_{message.chat.id}")
+    if payeer_address:
+        # Отправка запроса в канал админа
+        bot.send_message(
+            CHANNEL_ID,
+            f"💵 Запрос на вывод средств\n"
+            f"🆔 ID пользователя: {message.chat.id}\n"
+            f"💰 Сумма: {amount:.2f} рублей\n"
+            f"📩 Адрес Payeer: {payeer_address}\n"
+            f"✅ Нажмите 'Выплачено', чтобы подтвердить выплату.\n"
+            f"🚫 Нажмите 'Отменить', чтобы отменить запрос.",
+            reply_markup=types.InlineKeyboardMarkup().add(
+                types.InlineKeyboardButton("✅ Выплачено", callback_data=f"confirm_withdrawal_{message.chat.id}_{amount}_{payeer_address}"),
+                types.InlineKeyboardButton("🚫 Отменить", callback_data=f"cancel_withdrawal_{message.chat.id}")
+            )
         )
-    )
+        bot.send_message(message.chat.id, "Запрос на вывод отправлен на обработку.")
+    else:
+        bot.send_message(message.chat.id, "Введите корректный Payeer адрес.")
+        bot.register_next_step_handler(message, process_payeer_address, amount)
 
 @bot.callback_query_handler(func=lambda call: call.data.startswith("confirm_withdrawal"))
 def confirm_withdrawal(call):
