@@ -46,6 +46,11 @@ def send_welcome(message):
         return
     bot.reply_to(message, "👋 Привет! Выберите действие:", reply_markup=main_menu())
 
+
+# Функция для перезапуска бота
+def restart_bot():
+    subprocess.Popen(['python', 'bot.py'])
+
 # Обработка нажатий на кнопки
 @bot.message_handler(func=lambda message: True)
 def menu_handler(message):
