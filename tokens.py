@@ -79,6 +79,10 @@ def view_tokens(message):
     else:
         bot.send_message(message.chat.id, "📭 Список токенов пуст.")
 
+# Функция для перезапуска бота
+def restart_bot():
+    subprocess.Popen(['python', 'bot.py'])
+
 # Обработчик для удаления токена
 @bot.message_handler(regexp="❌ Удалить токен")
 def delete_token(message):
