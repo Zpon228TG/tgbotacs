@@ -25,8 +25,9 @@ def main_menu():
     btn_stop_all = types.KeyboardButton("🛑 Остановить всех ботов")
     btn_stop_bot = types.KeyboardButton("❌ Остановить выбранного бота")
     btn_running_bots = types.KeyboardButton("📋 Список запущенных ботов")
+    btn_delete_bot = types.KeyboardButton("🗑️ Удалить бота")
     markup.add(btn_add_bot, btn_run_python, btn_run_command, btn_start_all, btn_stop_all)
-    markup.add(btn_stop_bot, btn_running_bots)
+    markup.add(btn_stop_bot, btn_running_bots, btn_delete_bot)
     return markup
 
 # Обработка команды /start
@@ -61,6 +62,9 @@ def menu_handler(message):
         list_running_bots(message)
     elif message.text == "📋 Список запущенных ботов":
         show_running_bots(message)
+    elif message.text == "🗑️ Удалить бота":
+        bot.reply_to(message, "✍️ Введите название бота для удаления:")
+        bot.register_next_step_handler(message, delete_bot)
     else:
         bot.reply_to(message, "❓ Пожалуйста, выберите действие из меню.", reply_markup=main_menu())
 
@@ -196,28 +200,38 @@ def stop_selected_bot(call):
         else:
             bot.answer_callback_query(call.id, f"❌ PID не найден для бота {bot_name}.")
     else:
-        bot.answer_callback_query(call.id, f"❌ Бот {bot_name} не запущен.")
+        bot.answer_callback_query(call.id, f"❌ Бот {bot_name} не найден или не запущен.")
 
 def show_running_bots(message):
     bots = load_data('bots.json')
-    running_bots = {name: info for name, info in bots.items() if info.get('status') == 'running'}
+    running_bots = [name for name, info in bots.items() if info.get('status') == 'running']
 
-    if not running_bots:
+    if running_bots:
+        bot.reply_to(message, f"📋 Запущенные боты:\n" + "\n".join(running_bots))
+    else:
         bot.reply_to(message, "🔍 Нет запущенных ботов.")
-        return
 
-    bot_list = '\n'.join(running_bots.keys())
-    bot.reply_to(message, f"📋 Запущенные боты:\n{bot_list}")
+def delete_bot(message):
+    bot_name = message.text.strip()
+    bots = load_data('bots.json')
+
+    if bot_name in bots:
+        del bots[bot_name]
+        save_data('bots.json', bots)
+        bot.reply_to(message, f"🗑️ Бот '{bot_name}' успешно удален.")
+    else:
+        bot.reply_to(message, f"❌ Бот '{bot_name}' не найден в списке.")
 
 def load_data(filename):
     try:
-        with open(filename, 'r') as f:
-            return json.load(f)
+        with open(filename, 'r') as file:
+            return json.load(file)
     except (FileNotFoundError, json.JSONDecodeError):
         return {}
 
 def save_data(filename, data):
-    with open(filename, 'w') as f:
-        json.dump(data, f, indent=4)
+    with open(filename, 'w') as file:
+        json.dump(data, file, indent=4)
 
-bot.polling(none_stop=True)
+# Запуск бота
+bot.polling()
