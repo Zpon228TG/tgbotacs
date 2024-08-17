@@ -3,6 +3,7 @@ import os
 import json
 import signal
 import telebot
+import time
 from telebot import types
 
 # Токен вашего бота и ваш Telegram ID
