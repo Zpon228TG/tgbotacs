@@ -110,25 +110,28 @@ def start_all_bots(message):
     if not bots:
         bot.reply_to(message, "🔍 Нет зарегистрированных ботов для запуска.")
         return
-    
+
     for bot_name, bot_info in bots.items():
-        bot_path = bot_info.get('path')
-        if bot_path and os.path.isfile(bot_path):
-            try:
-                subprocess.Popen(['python', bot_path])
-                bot_info['status'] = 'running'
-                save_data('bots.json', bots)
-            except Exception as e:
-                bot.reply_to(message, f"Ошибка при запуске бота {bot_name}: {e}")
+        if isinstance(bot_info, dict):  # Убедитесь, что bot_info - это словарь
+            bot_path = bot_info.get('path')
+            if bot_path and os.path.isfile(bot_path):
+                try:
+                    subprocess.Popen(['python', bot_path])
+                    bot_info['status'] = 'running'
+                    save_data('bots.json', bots)
+                except Exception as e:
+                    bot.reply_to(message, f"Ошибка при запуске бота {bot_name}: {e}")
+            else:
+                bot.reply_to(message, f"❌ Бот {bot_name} с путем {bot_path} не найден.")
         else:
-            bot.reply_to(message, f"❌ Бот {bot_name} с путем {bot_path} не найден.")
-    
+            bot.reply_to(message, f"Ошибка: данные о боте {bot_name} некорректны.")
+
     bot.reply_to(message, "🚀 Все боты запущены.")
 
 def stop_all_bots(message):
     bots = load_data('bots.json')
     for bot_name, bot_info in bots.items():
-        if bot_info.get('status') == 'running':
+        if isinstance(bot_info, dict) and bot_info.get('status') == 'running':
             # Здесь нужно реализовать логику для остановки ботов, если это возможно
             bot_info['status'] = 'stopped'
             save_data('bots.json', bots)
