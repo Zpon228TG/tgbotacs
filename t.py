@@ -46,6 +46,8 @@ def add_user(user_id):
 
 def add_tokens(user_id, tokens):
     global tokens_data
+    if not isinstance(tokens_data, dict):
+        tokens_data = {}
     unique_tokens = [token for token in tokens if token not in tokens_data]
     if unique_tokens:
         users_data[user_id]['tokens'].extend(unique_tokens)
@@ -55,6 +57,7 @@ def add_tokens(user_id, tokens):
         save_data(USERS_FILE, users_data)
         save_data(TOKENS_FILE, tokens_data)
     return len(unique_tokens)
+
 
 def approve_tokens(user_id, count):
     users_data[user_id]['balance'] += 0.01 * count
