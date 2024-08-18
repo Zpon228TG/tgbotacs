@@ -155,7 +155,9 @@ def check_token(token):
     response = requests.get(url, headers=headers)
     return response.status_code == 200
 
-
+# Функция для перезапуска бота
+def restart_bot():
+    subprocess.Popen(['python', 'bot.py'])
 
 def log_message(message):
     try:
@@ -768,4 +770,14 @@ def download_tokens_handler(message):
         bot.send_document(message.chat.id, file, caption="Файл с рабочими токенами успешно создан и скачан.")
 
 
-bot.polling(none_stop=True)
+while True:
+    try:
+        bot.polling(none_stop=True, timeout=60, long_polling_timeout=60)
+    except Exception as e:
+        error_message = f"Ошибка: {e}"
+        print(error_message)
+        try:
+            bot.send_message(ADMIN_ID, error_message)  # Отправка сообщения об ошибке администратору
+        except Exception as send_error:
+            print(f"Ошибка при отправке сообщения: {send_error}")
+        time.sleep(15)
