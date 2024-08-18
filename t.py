@@ -449,11 +449,77 @@ def admin_panel(message):
     if str(message.chat.id) == ADMIN_ID:
         markup = types.ReplyKeyboardMarkup(resize_keyboard=True)
         markup.add(types.KeyboardButton("📥 Скачать токены"))
+        markup.add(types.KeyboardButton("🗨 Рассылка"))
         markup.add(types.KeyboardButton("🔙 Назад"))
         bot.send_message(message.chat.id, "Выберите действие:", reply_markup=markup)
     else:
         bot.send_message(message.chat.id, "У вас нет доступа к админке.")
 
+
+@bot.message_handler(func=lambda message: message.text == "🗨 Рассылка")
+def mailing_options(message):
+    if str(message.chat.id) == ADMIN_ID:
+        markup = types.ReplyKeyboardMarkup(resize_keyboard=True)
+        markup.add(types.KeyboardButton("Рассылка с фото"))
+        markup.add(types.KeyboardButton("Рассылка без фото"))
+        markup.add(types.KeyboardButton("🔙 Назад"))
+        bot.send_message(message.chat.id, "Выберите тип рассылки:", reply_markup=markup)
+    else:
+        bot.send_message(message.chat.id, "У вас нет доступа к админке.")
+
+
+def handle_mailing(message, with_photo=False):
+    bot.send_message(message.chat.id, "Введите текст сообщения для рассылки:")
+    bot.register_next_step_handler(message, lambda msg: collect_message(msg, with_photo))
+
+def collect_message(message, with_photo):
+    user_id = str(message.chat.id)
+    text = message.text
+    if with_photo:
+        bot.send_message(user_id, "Теперь отправьте фото для рассылки:")
+        bot.register_next_step_handler(message, lambda msg: collect_photo(msg, text))
+    else:
+        send_mailing(text)
+
+def collect_photo(message, text):
+    if message.content_type == 'photo':
+        file_info = bot.get_file(message.photo[-1].file_id)
+        file = bot.download_file(file_info.file_path)
+        with open('temp_photo.jpg', 'wb') as f:
+            f.write(file)
+        send_mailing(text, photo_path='temp_photo.jpg')
+        os.remove('temp_photo.jpg')
+    else:
+        bot.send_message(message.chat.id, "Пожалуйста, отправьте фото для рассылки.")
+        bot.register_next_step_handler(message, lambda msg: collect_photo(msg, text))
+
+def send_mailing(text, photo_path=None):
+    user_ids = load_data(USERS_FILE).keys()  # Получаем всех пользователей
+    for user_id in user_ids:
+        try:
+            if photo_path:
+                with open(photo_path, 'rb') as photo:
+                    bot.send_photo(user_id, photo, caption=text)
+            else:
+                bot.send_message(user_id, text)
+            time.sleep(1)  # Добавляем задержку между сообщениями
+        except Exception as e:
+            bot.send_message(ADMIN_ID, f"Ошибка при отправке сообщения пользователю {user_id}: {e}")
+
+
+@bot.message_handler(func=lambda message: message.text == "Рассылка с фото")
+def mailing_with_photo(message):
+    if str(message.chat.id) == ADMIN_ID:
+        handle_mailing(message, with_photo=True)
+    else:
+        bot.send_message(message.chat.id, "У вас нет доступа к админке.")
+
+@bot.message_handler(func=lambda message: message.text == "Рассылка без фото")
+def mailing_without_photo(message):
+    if str(message.chat.id) == ADMIN_ID:
+        handle_mailing(message, with_photo=False)
+    else:
+        bot.send_message(message.chat.id, "У вас нет доступа к админке.")
 
 @bot.message_handler(func=lambda message: message.text == "🆘 Тех. поддержка")
 def support(message):
