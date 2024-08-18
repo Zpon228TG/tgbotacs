@@ -18,6 +18,7 @@ SUPPORT_BOT_LINK = 'https://t.me/your_support_bot'
 TOKENS_FILE = 'tokens.json'
 USERS_FILE = 'users.json'
 ADMIN_ID = '6578018656'  # Ваш ID
+BLOCKED_USERS_FILE = 'blocked_users.json'
 
 # Процент комиссии на вывод
 WITHDRAWAL_FEE_PERCENT = 1.5
@@ -52,6 +53,12 @@ def add_user(user_id):
 
 def generate_tokens_filename(user_id):
     return f"{user_id}_working_tokens.txt"
+
+# Загрузим данные заблокированных пользователей
+blocked_users_data = load_data(BLOCKED_USERS_FILE) or {}
+
+def save_blocked_users():
+    save_data(BLOCKED_USERS_FILE, blocked_users_data)
 
 def add_tokens(user_id, tokens):
     global tokens_data
@@ -217,6 +224,8 @@ def back_to_main_keyboard(user_id):
 def start(message):
     user_id = str(message.chat.id)
     add_user(user_id)
+    if user_id not in blocked_users_data:
+        log_message(f"#НовыйПользователь{user_id} Новый пользователь начал использовать бота.")
     if not users_data[user_id]['accepted_rules']:
         bot.send_message(user_id, "Привет! Добро пожаловать! Пожалуйста, ознакомьтесь с правилами использования бота - (https://your_rules_link). Для продолжения нажмите 'Согласен с правилами использования'.")
         markup = types.ReplyKeyboardMarkup(resize_keyboard=True)
@@ -224,6 +233,7 @@ def start(message):
         bot.send_message(user_id, "Вы должны согласиться с правилами использования, чтобы продолжить.", reply_markup=markup)
     else:
         bot.send_message(user_id, "Привет! Выберите действие:", reply_markup=main_keyboard(user_id))
+
 
 
 @bot.message_handler(func=lambda message: message.text == "Согласен с правилами использования")
@@ -450,10 +460,236 @@ def admin_panel(message):
         markup = types.ReplyKeyboardMarkup(resize_keyboard=True)
         markup.add(types.KeyboardButton("📥 Скачать токены"))
         markup.add(types.KeyboardButton("🗨 Рассылка"))
+        markup.add(types.KeyboardButton("🔍 Управление пользователями"))
+        markup.add(types.KeyboardButton("🔙 Назад"))
+        bot.send_message(message.chat.id, "Админка", reply_markup=markup)
+
+
+@bot.message_handler(func=lambda message: message.text == "🔍 Управление пользователями")
+def user_management(message):
+    if str(message.chat.id) == ADMIN_ID:
+        markup = types.ReplyKeyboardMarkup(resize_keyboard=True)
+        markup.add(types.KeyboardButton("🔎 Поиск по ID"))
+        markup.add(types.KeyboardButton("🚫 Блокировка пользователя"))
+        markup.add(types.KeyboardButton("🔓 Разблокировка пользователя"))
+        markup.add(types.KeyboardButton("📋 Список разблокированных пользователей"))
+        markup.add(types.KeyboardButton("🔙 Назад"))
+        bot.send_message(message.chat.id, "Выберите действие:", reply_markup=markup)
+
+
+@bot.message_handler(func=lambda message: message.text == "🔎 Поиск по ID")
+def search_user_by_id(message):
+    if str(message.chat.id) == ADMIN_ID:
+        bot.send_message(message.chat.id, "Введите ID пользователя для поиска:")
+        bot.register_next_step_handler(message, search_user_by_id_process)
+
+
+def search_user_by_id_process(message):
+    user_id = message.text.strip()
+    if user_id in users_data:
+        user_info = users_data[user_id]
+        bot.send_message(
+            message.chat.id,
+            f"🆔 ID: {user_id}\n💰 Баланс: {user_info['balance']:.2f}\n🪙 Всего токенов: {user_info['total_tokens']}"
+        )
+    else:
+        bot.send_message(message.chat.id, "Пользователь не найден.")
+    bot.send_message(message.chat.id, "Выберите действие:", reply_markup=user_management(message))
+
+
+@bot.message_handler(func=lambda message: message.text == "🚫 Блокировка пользователя")
+def block_user(message):
+    if str(message.chat.id) == ADMIN_ID:
+        bot.send_message(message.chat.id, "Введите ID пользователя для блокировки:")
+        bot.register_next_step_handler(message, block_user_process)
+
+
+def block_user_process(message):
+    user_id = message.text.strip()
+    if user_id in users_data:
+        blocked_users_data[user_id] = users_data[user_id]
+        save_blocked_users()
+        del users_data[user_id]
+        save_data(USERS_FILE, users_data)
+        bot.send_message(message.chat.id, f"Пользователь {user_id} заблокирован.")
+    else:
+        bot.send_message(message.chat.id, "Пользователь не найден.")
+    bot.send_message(message.chat.id, "Выберите действие:", reply_markup=user_management(message))
+
+
+@bot.message_handler(func=lambda message: message.text == "🔓 Разблокировка пользователя")
+def unblock_user(message):
+    if str(message.chat.id) == ADMIN_ID:
+        bot.send_message(message.chat.id, "Введите ID пользователя для разблокировки:")
+        bot.register_next_step_handler(message, unblock_user_process)
+
+
+def unblock_user_process(message):
+    user_id = message.text.strip()
+    if user_id in blocked_users_data:
+        users_data[user_id] = blocked_users_data[user_id]
+        del blocked_users_data[user_id]
+        save_data(USERS_FILE, users_data)
+        save_blocked_users()
+        bot.send_message(message.chat.id, f"Пользователь {user_id} разблокирован.")
+    else:
+        bot.send_message(message.chat.id, "Пользователь не найден или не заблокирован.")
+    bot.send_message(message.chat.id, "Выберите действие:", reply_markup=user_management(message))
+
+
+@bot.message_handler(func=lambda message: message.text == "📋 Список разблокированных пользователей")
+def list_unblocked_users(message):
+    if str(message.chat.id) == ADMIN_ID:
+        if blocked_users_data:
+            blocked_users_list = "\n".join(blocked_users_data.keys())
+            bot.send_message(message.chat.id, f"Заблокированные пользователи:\n{blocked_users_list}")
+        else:
+            bot.send_message(message.chat.id, "Нет заблокированных пользователей.")
+    bot.send_message(message.chat.id, "Выберите действие:", reply_markup=user_management(message))
+
+
+@bot.message_handler(func=lambda message: message.text == "🔙 Назад")
+def go_back_from_admin(message):
+    bot.send_message(message.chat.id, "Выберите действие:", reply_markup=main_keyboard(message.chat.id))
+
+@bot.message_handler(func=lambda message: message.text == "🔒 Блокировка пользователей")
+def block_users(message):
+    if str(message.chat.id) == ADMIN_ID:
+        bot.send_message(message.chat.id, "Введите ID пользователя для блокировки:")
+        bot.register_next_step_handler(message, block_user)
+
+@bot.message_handler(func=lambda message: message.text == "📊 Статистика")
+def show_statistics(message):
+    if str(message.chat.id) == ADMIN_ID:
+        total_users, total_balance = get_stats()
+        stats_text = (
+            f"👥 Всего пользователей: {total_users}\n"
+            f"💰 Общий баланс: {total_balance:.2f} рублей"
+        )
+        bot.send_message(message.chat.id, stats_text)
+    else:
+        bot.send_message(message.chat.id, "У вас нет доступа к статистике.")
+
+@bot.message_handler(func=lambda message: message.text == "🔒 Управление пользователями")
+def user_management(message):
+    if str(message.chat.id) == ADMIN_ID:
+        markup = types.ReplyKeyboardMarkup(resize_keyboard=True)
+        markup.add(types.KeyboardButton("🔍 Найти пользователя"))
+        markup.add(types.KeyboardButton("🔒 Заблокированные пользователи"))
         markup.add(types.KeyboardButton("🔙 Назад"))
         bot.send_message(message.chat.id, "Выберите действие:", reply_markup=markup)
     else:
-        bot.send_message(message.chat.id, "У вас нет доступа к админке.")
+        bot.send_message(message.chat.id, "У вас нет доступа к управлению пользователями.")
+
+@bot.message_handler(func=lambda message: message.text == "🔍 Найти пользователя")
+def find_user(message):
+    if str(message.chat.id) == ADMIN_ID:
+        bot.send_message(message.chat.id, "Введите ID пользователя для поиска:")
+        bot.register_next_step_handler(message, search_user_by_id)
+
+def search_user_by_id(message):
+    user_id = message.text.strip()
+    user_data = users_data.get(user_id, None)
+    if user_data:
+        profile_text = (
+            f"🆔 ID пользователя: {user_id}\n"
+            f"💰 Баланс: {user_data['balance']:.2f} рублей\n"
+            f"🪙 Всего токенов загружено: {user_data['total_tokens']}\n"
+            "🔒 Вы можете заблокировать или разблокировать пользователя ниже."
+        )
+        markup = types.InlineKeyboardMarkup()
+        markup.add(types.InlineKeyboardButton("🚫 Заблокировать", callback_data=f"block_{user_id}"))
+        markup.add(types.InlineKeyboardButton("🔓 Разблокировать", callback_data=f"unblock_{user_id}"))
+        bot.send_message(message.chat.id, profile_text, reply_markup=markup)
+    else:
+        bot.send_message(message.chat.id, "Пользователь не найден.")
+
+def get_stats():
+    total_users = len(users_data)
+    total_balance = sum(user['balance'] for user in users_data.values())
+    return total_users, total_balance
+
+def block_user(user_id, reason):
+    if user_id in users_data:
+        blocked_users_data[user_id] = reason
+        save_blocked_users()
+        del users_data[user_id]
+        save_data(USERS_FILE, users_data)
+        bot.send_message(ADMIN_ID, f"Пользователь {user_id} заблокирован по причине: {reason}.")
+    else:
+        bot.send_message(ADMIN_ID, f"Пользователь {user_id} не найден.")
+
+def unblock_user(user_id):
+    if user_id in blocked_users_data:
+        users_data[user_id] = {
+            'balance': 0.0,
+            'tokens': [],
+            'total_tokens': 0,
+            'accepted_rules': False
+        }
+        save_data(USERS_FILE, users_data)
+        del blocked_users_data[user_id]
+        save_blocked_users()
+        bot.send_message(ADMIN_ID, f"Пользователь {user_id} разблокирован.")
+    else:
+        bot.send_message(ADMIN_ID, f"Пользователь {user_id} не найден среди заблокированных.")
+
+@bot.message_handler(func=lambda message: message.text == "🔒 Заблокированные пользователи")
+def show_blocked_users(message):
+    if str(message.chat.id) == ADMIN_ID:
+        if blocked_users_data:
+            blocked_list = "\n".join(f"🆔 {user_id} - Причина: {reason}" for user_id, reason in blocked_users_data.items())
+            bot.send_message(message.chat.id, f"🔒 Заблокированные пользователи:\n{blocked_list}")
+        else:
+            bot.send_message(message.chat.id, "Нет заблокированных пользователей.")
+    else:
+        bot.send_message(message.chat.id, "У вас нет доступа к заблокированным пользователям.")
+
+@bot.callback_query_handler(func=lambda call: call.data.startswith("block_"))
+def block_user_callback(call):
+    _, user_id = call.data.split("_")
+    bot.send_message(call.message.chat.id, f"Введите причину блокировки для пользователя {user_id}:")
+    bot.register_next_step_handler(call.message, lambda msg: block_user(user_id, msg.text))
+
+def unblock_user(call):
+    user_id = call.data.split("_")[1]
+    if user_id in blocked_users_data:
+        del blocked_users_data[user_id]
+        save_blocked_users()
+        bot.send_message(call.message.chat.id, f"Пользователь {user_id} разблокирован.")
+        log_message(f"#Разблокировка{user_id} Пользователь {user_id} разблокирован.")
+    else:
+        bot.send_message(call.message.chat.id, "Пользователь не найден в списке заблокированных.")
+    bot.delete_message(call.message.chat.id, call.message.message_id)
+
+@bot.message_handler(func=lambda message: message.text == "🔒 Блокировка пользователей")
+def block_users(message):
+    if str(message.chat.id) == ADMIN_ID:
+        bot.send_message(message.chat.id, "Введите ID пользователя для блокировки:")
+        bot.register_next_step_handler(message, block_user)
+
+def block_user(message):
+    user_id = message.text.strip()
+    if user_id in users_data:
+        blocked_users_data[user_id] = users_data[user_id]
+        save_blocked_users()
+        bot.send_message(message.chat.id, f"Пользователь {user_id} заблокирован.")
+        log_message(f"#Блокировка{user_id} Пользователь {user_id} заблокирован.")
+    else:
+        bot.send_message(message.chat.id, "Пользователь с таким ID не найден.")
+
+@bot.message_handler(func=lambda message: message.text == "🔓 Разблокировка пользователей")
+def unblock_users(message):
+    if str(message.chat.id) == ADMIN_ID:
+        bot.send_message(message.chat.id, "Введите ID пользователя для разблокировки:")
+        bot.register_next_step_handler(message, confirm_unblock_user)
+
+def confirm_unblock_user(message):
+    user_id = message.text.strip()
+    markup = types.InlineKeyboardMarkup()
+    markup.add(types.InlineKeyboardButton("✅ Да", callback_data=f"unblock_{user_id}"))
+    markup.add(types.InlineKeyboardButton("❌ Нет", callback_data="cancel_unblock"))
+    bot.send_message(message.chat.id, f"Вы действительно хотите разблокировать пользователя {user_id}?", reply_markup=markup)
 
 
 @bot.message_handler(func=lambda message: message.text == "🗨 Рассылка")
