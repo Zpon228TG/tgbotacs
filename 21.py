@@ -2,21 +2,18 @@ import requests
 import random
 import time
 import datetime
-from telegram import Bot
 
 # Константы
 API_URL = "https://botsapi.socpanel.com"
 API_TOKEN = "wAiWKslGBzQI7Pop9xrJtb8iIN1tAU"
-SERVICE_ID = "208621_1"  
-TELEGRAM_BOT_TOKEN = "6970413717:AAH190kZio-JIXyeSnZdlxHQzcczvSy0nsk"
-CHAT_ID = "6578018656"
-
-# Инициализация бота
-bot = Bot(token=TELEGRAM_BOT_TOKEN)
+SERVICE_ID = "208621_1"
+TELEGRAM_TOKEN = "6970413717:AAH190kZio-JIXyeSnZdlxHQzcczvSy0nsk"
+ADMIN_ID = "6578018656"
+sendTelegramMessage('Бот работает')
 
 def getTimeStr():
-    time = datetime.datetime.now()
-    return f'[{time.hour}:{time.minute}:{time.second}]'
+    now = datetime.datetime.now()
+    return f'[{now.hour}:{now.minute}:{now.second}]'
 
 def randomInt():
     return random.randint(1, 1000000000000000000)
@@ -31,8 +28,10 @@ def getOrder():
     response = requests.get(f"{API_URL}/getOrder", params=params)
     if response.ok:
         orderId = response.json()['id']
+        print(f'{getTimeStr()} Взял заказ {orderId}, ид акка {accId}')
         return {'orderId': orderId, 'accId': accId}
     else:
+        print(f'{getTimeStr()} Кривой ответ, {response}')
         return {'error': f'Кривой ответ, {response}'}
 
 def checkOrder(orderId, accId):
@@ -44,16 +43,27 @@ def checkOrder(orderId, accId):
     response = requests.get(f"{API_URL}/check", params=params)
     return response.json()
 
-order_count = 0
-while True:
-    getOrdersResponseObj = getOrder()
-    if 'orderId' in getOrdersResponseObj:
-        order_count += 1
-        check_result = checkOrder(getOrdersResponseObj['orderId'], getOrdersResponseObj['accId'])
-        
-        # Отправка сообщения каждые 500 заказов
-        if order_count % 500 == 0:
-            bot.send_message(chat_id=CHAT_ID, text=f'Успешно обработано {order_count} заказов. {getTimeStr()}')
+def sendTelegramMessage(chat_id, text):
+    url = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendMessage"
+    params = {
+        "chat_id": chat_id,
+        "text": text
+    }
+    response = requests.post(url, params=params)
+    if not response.ok:
+        print(f'{getTimeStr()} Не удалось отправить сообщение в Telegram: {response}')
 
-    # Добавляем небольшую задержку, чтобы избежать излишней нагрузки на сервер
-    time.sleep(1)
+def main():
+    execution_count = 0
+
+    while True:
+        getOrdersResponseObj = getOrder()
+        if 'orderId' in getOrdersResponseObj:
+            checkOrder(getOrdersResponseObj['orderId'], getOrdersResponseObj['accId'])
+            execution_count += 1
+            if execution_count % 500 == 0:
+                sendTelegramMessage(ADMIN_ID, f'Выполнено {execution_count} операций.')
+        time.sleep(1)  # Пауза между запросами, настройте по необходимости
+
+if __name__ == "__main__":
+    main()
