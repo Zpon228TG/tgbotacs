@@ -5,8 +5,7 @@ import datetime
 import threading
 from queue import Queue
 from telegram import Bot, Update
-from telegram.ext import Application, CommandHandler, CallbackContext
-import asyncio
+from telegram.ext import Updater, CommandHandler, CallbackContext
 
 # Константы
 API_URL = "https://botsapi.socpanel.com"
@@ -85,14 +84,16 @@ def send_telegram_message(message):
     bot = Bot(token=TELEGRAM_TOKEN)
     bot.send_message(chat_id=TELEGRAM_CHAT_ID, text=message)
 
-async def start(update: Update, context: CallbackContext) -> None:
-    await context.bot.send_message(chat_id=update.effective_chat.id, text='Бот начал выполнение заказов!')
+def start(update: Update, context: CallbackContext) -> None:
+    context.bot.send_message(chat_id=update.effective_chat.id, text='Бот начал выполнение заказов!')
 
-async def main():
+def main():
     # Настройка телеграм-бота
-    application = Application.builder().token(TELEGRAM_TOKEN).build()
+    updater = Updater(TELEGRAM_TOKEN, use_context=True)
+    dispatcher = updater.dispatcher
 
-    application.add_handler(CommandHandler("start", start))
+    # Обработчик команды /start
+    dispatcher.add_handler(CommandHandler("start", start))
 
     # Создание потоков для выполнения заказов
     for _ in range(5):  # количество потоков для выполнения заказов
@@ -104,8 +105,8 @@ async def main():
     fetcher.start()
 
     # Запуск бота
-    await application.run_polling()
+    updater.start_polling()
+    updater.idle()
 
 if __name__ == '__main__':
-    loop = asyncio.get_event_loop()
-    loop.run_until_complete(main())
+    main()
