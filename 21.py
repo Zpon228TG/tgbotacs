@@ -4,8 +4,8 @@ import time
 import datetime
 import threading
 from queue import Queue
-from telegram import Update, Bot
-from telegram.ext import Updater, CommandHandler, CallbackContext
+from telegram import Bot
+from telegram.ext import Updater, CommandHandler, CallbackContext, CallbackQueryHandler
 
 # Константы
 API_URL = "https://botsapi.socpanel.com"
@@ -85,7 +85,7 @@ def send_telegram_message(message):
     bot.send_message(chat_id=TELEGRAM_CHAT_ID, text=message)
 
 def start(update: Update, context: CallbackContext) -> None:
-    update.message.reply_text('Бот начал выполнение заказов!')
+    context.bot.send_message(chat_id=update.effective_chat.id, text='Бот начал выполнение заказов!')
 
 def main():
     # Настройка телеграм-бота
