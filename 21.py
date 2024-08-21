@@ -6,6 +6,7 @@ import threading
 from queue import Queue
 from telegram import Bot, Update
 from telegram.ext import Application, CommandHandler, CallbackContext
+import asyncio
 
 # Константы
 API_URL = "https://botsapi.socpanel.com"
@@ -106,5 +107,5 @@ async def main():
     await application.run_polling()
 
 if __name__ == '__main__':
-    import asyncio
-    asyncio.run(main())
+    loop = asyncio.get_event_loop()
+    loop.run_until_complete(main())
