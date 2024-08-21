@@ -9,7 +9,7 @@ API_TOKEN = "wAiWKslGBzQI7Pop9xrJtb8iIN1tAU"
 SERVICE_ID = "208621_1"
 TELEGRAM_TOKEN = "6970413717:AAH190kZio-JIXyeSnZdlxHQzcczvSy0nsk"
 ADMIN_ID = "6578018656"
-sendTelegramMessage('Бот работает')
+
 
 def getTimeStr():
     now = datetime.datetime.now()
