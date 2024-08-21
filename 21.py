@@ -4,10 +4,8 @@ import time
 import datetime
 import threading
 from queue import Queue
-from telegram import Bot
+from telegram import Bot, Update
 from telegram.ext import Updater, CommandHandler, CallbackContext
-from telegram.ext import MessageHandler, Filters
-from telegram import Update
 
 # Константы
 API_URL = "https://botsapi.socpanel.com"
