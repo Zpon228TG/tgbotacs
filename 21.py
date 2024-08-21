@@ -103,8 +103,7 @@ async def main():
     fetcher.start()
 
     # Запуск бота
-    await application.start_polling()
-    await application.idle()
+    await application.run_polling()
 
 if __name__ == '__main__':
     import asyncio
