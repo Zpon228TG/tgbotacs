@@ -1,144 +1,122 @@
 import requests
-import json
-import time
-import os
 import random
 import string
-from telebot import TeleBot
+import time
+import json
+import os
+from telegram import Bot
 
-# Настройки
-TELEGRAM_BOT_TOKEN = '7426380650:AAEkJp4_EF4h8ZvLxBbNNWT8xXg7jRQ02n0'
+# Конфигурация Telegram-бота
+TELEGRAM_TOKEN = '7426380650:AAEkJp4_EF4h8ZvLxBbNNWT8xXg7jRQ02n0'
 CHAT_ID = '7412395676'
-FILE_PATH = 'emails.txt'
-MAX_FILE_SIZE_MB = 9
-API_BASE_URL = 'https://api.mail.tm'
-REQUEST_LIMIT = 10  # Количество запросов до ожидания
-WAIT_TIME = 60      # Время ожидания при ошибке 429 (в секундах)
-MIN_WAIT_TIME = 10  # Минимальное время ожидания (в секундах)
-MAX_WAIT_TIME = 25  # Максимальное время ожидания (в секундах)
+bot = Bot(token=TELEGRAM_TOKEN)
 
-# Инициализация бота
-bot = TeleBot(TELEGRAM_BOT_TOKEN)
+# URL API
+BASE_URL = "https://api.mail.tm"
 
-def generate_password(length=12):
-    characters = string.ascii_letters + string.digits + string.punctuation
-    return ''.join(random.choice(characters) for _ in range(length))
+# Функция для генерации случайной строки
+def generate_random_string(length):
+    return ''.join(random.choices(string.ascii_letters + string.digits, k=length))
 
-def generate_email(domain):
-    username = ''.join(random.choices(string.ascii_letters + string.digits, k=10))
-    return f'{username}@{domain}'
-
+# Функция для получения доменов
 def get_domains():
-    try:
-        response = requests.get(f'{API_BASE_URL}/domains')
-        response.raise_for_status()
-        domains = response.json()["hydra:member"]
-        return [domain["domain"] for domain in domains]
-    except requests.exceptions.HTTPError as e:
-        bot.send_message(CHAT_ID, f"🚨 Ошибка при получении доменов: {e}")
-        return []
+    response = requests.get(f"{BASE_URL}/domains")
+    response.raise_for_status()
+    return response.json()['hydra:member']
 
-def create_account_and_get_token(domain):
-    email = generate_email(domain)
-    password = generate_password()
-    account_data = {
-        "address": email,
-        "password": password
-    }
-    
-    try:
-        response = requests.post(f'{API_BASE_URL}/accounts', json=account_data)
-        if response.status_code == 429:
-            bot.send_message(CHAT_ID, "🚨 Слишком много запросов, делаем паузу...")
-            time.sleep(WAIT_TIME)
-            return None, None, None
-        
-        response.raise_for_status()
-        account_info = response.json()
-        account_id = account_info.get('id')
-        
-        token_data = {
-            "address": email,
-            "password": password
-        }
-        response = requests.post(f'{API_BASE_URL}/token', json=token_data)
-        if response.status_code == 429:
-            bot.send_message(CHAT_ID, "🚨 Слишком много запросов, делаем паузу...")
-            time.sleep(WAIT_TIME)
-            return None, None, None
-        
-        response.raise_for_status()
-        token_info = response.json()
-        token = token_info.get('token')
-        
-        if not token:
-            bot.send_message(CHAT_ID, f"🚨 Не удалось получить токен для почты {email}.")
-            return None, None, None
-        
-        return email, password, token
-    except requests.exceptions.RequestException as e:
-        bot.send_message(CHAT_ID, f"🚨 Ошибка: {e}")
-        return None, None, None
+# Функция для создания аккаунта
+def create_account(domain, token):
+    email = generate_random_string(10) + "@" + domain
+    password = generate_random_string(10)
+    response = requests.post(
+        f"{BASE_URL}/accounts",
+        headers={"Authorization": f"Bearer {token}"},
+        json={"address": email, "password": password}
+    )
+    response.raise_for_status()
+    return email, password, response.json()['id']
 
-def write_to_file(data):
-    with open(FILE_PATH, 'a') as file:
-        file.write(data + '\n')
+# Функция для получения токена
+def get_token(address, password):
+    response = requests.post(
+        f"{BASE_URL}/token",
+        json={"address": address, "password": password}
+    )
+    response.raise_for_status()
+    return response.json()['token']
 
-def send_file_via_telegram(file_path):
-    with open(file_path, 'rb') as file:
-        bot.send_document(CHAT_ID, file)
+# Функция для получения сообщений
+def get_messages(token):
+    response = requests.get(
+        f"{BASE_URL}/messages",
+        headers={"Authorization": f"Bearer {token}"}
+    )
+    response.raise_for_status()
+    return response.json()['hydra:member']
 
-def check_file_size_and_send():
-    file_size_mb = os.path.getsize(FILE_PATH) / (1024 * 1024)
-    if file_size_mb >= MAX_FILE_SIZE_MB:
-        bot.send_message(CHAT_ID, "📂 #почты")
-        send_file_via_telegram(FILE_PATH)
-        os.remove(FILE_PATH)
+# Функция для отправки сообщения в Telegram
+def send_telegram_message(text):
+    bot.send_message(chat_id=CHAT_ID, text=text)
 
+# Основная функция
 def main():
     domains = get_domains()
-    if not domains:
-        bot.send_message(CHAT_ID, "🚨 Не удалось получить домены. Завершение работы.")
-        return
-
-    count = 0
-    request_count = 0
-
+    domain = domains[0]['domain']  # Выберите первый домен
+    
+    # Предполагаем, что у нас есть доступ к аккаунту с этой почтой и паролем
+    address = "existing@example.com"
+    password = "existing_password"
+    
+    # Получите токен для существующего аккаунта
+    token = get_token(address, password)
+    
+    file_path = "accounts.txt"
+    max_file_size_mb = 9
+    
+    # Генерация и создание нового аккаунта
     while True:
         try:
-            if count % 25 == 0 and count > 0:
-                file_size = os.path.getsize(FILE_PATH) / (1024 * 1024)
-                total_emails = count
-                bot.send_message(CHAT_ID, f"🌟 Взято {total_emails} почт. Текущий размер файла: {file_size:.2f} MB 📁")
+            email, password, account_id = create_account(domain, token)
+            print(f"Создан новый аккаунт: {email}, {password}, ID: {account_id}")
+            
+            # Задержка для предотвращения ошибок из-за частых запросов
+            time.sleep(random.uniform(10, 25))
+            
+            # Получите список сообщений для проверки
+            messages = get_messages(token)
+            print(f"Получено сообщений: {len(messages)}")
+            
+            # Запись данных в файл
+            with open(file_path, "a") as file:
+                file.write(f"{email}:{password}:{token}\n")
+            
+            # Проверка размера файла и отправка в Telegram
+            if os.path.getsize(file_path) > max_file_size_mb * 1024 * 1024:
+                send_telegram_message(f"#почты Файл превышает {max_file_size_mb} МБ, отправляю...")
+                with open(file_path, "rb") as file:
+                    bot.send_document(chat_id=CHAT_ID, document=file)
+                os.remove(file_path)
+            
+            # Уведомление о добавлении почты
+            send_telegram_message(f"Взял 1 почту. Размер файла: {os.path.getsize(file_path) / (1024 * 1024):.2f} МБ")
+            
+            # Запуск функции через 10-25 секунд
+            time.sleep(random.uniform(10, 25))
+        
+        except requests.exceptions.HTTPError as err:
+            # Обработка ошибок
+            if err.response.status_code == 429:
+                print("🚨 Слишком много запросов, делаем паузу...")
+                send_telegram_message("🚨 Слишком много запросов, делаем паузу...")
+                time.sleep(60)  # Пауза 1 минута
+            elif err.response.status_code == 401:
+                print("🚨 Ошибка авторизации. Проверьте токен.")
+                send_telegram_message("🚨 Ошибка авторизации. Проверьте токен.")
+                break
+            else:
+                print(f"🚨 Ошибка: {err}")
+                send_telegram_message(f"🚨 Ошибка: {err}")
+                time.sleep(60)  # Пауза 1 минута
 
-            domain = random.choice(domains)
-            email, password, token = create_account_and_get_token(domain)
-            if not email or not password or not token:
-                continue
-            write_to_file(f'{email}:{password}:{token}')
-
-            # Информация в терминале
-            print(f"Создана почта: {email}")
-            print(f"Пароль: {password}")
-            print(f"Токен: {token}")
-
-            count += 1
-            request_count += 1
-
-            # Управление частотой запросов
-            if request_count >= REQUEST_LIMIT:
-                bot.send_message(CHAT_ID, "⏳ Достигнут лимит запросов, делаем паузу...")
-                time.sleep(WAIT_TIME)  # Ожидание перед следующими запросами
-                request_count = 0
-
-            check_file_size_and_send()
-
-            # Время ожидания от 10 до 25 секунд
-            time.sleep(random.uniform(MIN_WAIT_TIME, MAX_WAIT_TIME))
-
-        except requests.exceptions.RequestException as e:
-            bot.send_message(CHAT_ID, f"🚨 Ошибка: {e}")
-            time.sleep(5)  # Ожидание перед повтором в случае ошибки
-
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()
