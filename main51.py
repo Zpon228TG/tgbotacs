@@ -40,7 +40,6 @@ def create_account(domain):
     response = requests.post(f'{API_BASE_URL}/accounts', json=account_data)
     response.raise_for_status()
     account_info = response.json()
-    print("API Response:", account_info)  # Отладочная информация
     account_id = account_info.get('id')
     return email, password, account_id
 
@@ -52,7 +51,6 @@ def get_token(email, password):
     response = requests.post(f'{API_BASE_URL}/token', json=token_data)
     response.raise_for_status()
     token_info = response.json()
-    print("Token Response:", token_info)  # Отладочная информация
     return token_info.get('token')
 
 def write_to_file(data):
@@ -76,10 +74,10 @@ def main():
 
     while True:
         try:
-            if count % 5 == 0 and count > 0:
+            if count % 25 == 0 and count > 0:
                 file_size = os.path.getsize(FILE_PATH) / (1024 * 1024)
                 total_emails = count
-                bot.send_message(CHAT_ID, f"✨ Взято {total_emails} почт. Текущий размер файла: {file_size:.2f} MB 📁")
+                bot.send_message(CHAT_ID, f"🌟 Взято {total_emails} почт. Текущий размер файла: {file_size:.2f} MB 📁")
 
             domain = domains[count % len(domains)]
             email, password, account_id = create_account(domain)
