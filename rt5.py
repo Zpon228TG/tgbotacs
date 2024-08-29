@@ -40,7 +40,7 @@ def get_token(address, password):
     )
     if response.status_code != 200:
         print(f"Ошибка при получении токена: {response.status_code}, {response.text}")
-    response.raise_for_status()
+        raise requests.exceptions.HTTPError(response.text)
     return response.json()['token']
 
 # Функция для получения сообщений
