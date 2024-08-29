@@ -12,6 +12,7 @@ CHAT_ID = '7412395676'
 FILE_PATH = 'emails.txt'
 MAX_FILE_SIZE_MB = 9
 API_BASE_URL = 'https://api.mail.tm'
+REQUEST_LIMIT = 10  # Количество запросов до ожидания
 
 # Инициализация бота
 bot = TeleBot(TELEGRAM_BOT_TOKEN)
@@ -33,34 +34,41 @@ def get_domains():
     domains = response.json()["hydra:member"]
     return [domain["domain"] for domain in domains]
 
-def create_account(domain):
+def create_account_and_get_token(domain):
     email = generate_email(domain)
     password = generate_password()
     account_data = {
         "address": email,
         "password": password
     }
-    response = requests.post(f'{API_BASE_URL}/accounts', json=account_data)
-    if response.status_code == 401:
-        bot.send_message(CHAT_ID, "🚨 Ошибка авторизации при создании аккаунта.")
+    
+    try:
+        response = requests.post(f'{API_BASE_URL}/accounts', json=account_data)
+        if response.status_code == 401:
+            bot.send_message(CHAT_ID, "🚨 Ошибка авторизации при создании аккаунта.")
+            return None, None, None
+        
+        response.raise_for_status()
+        account_info = response.json()
+        account_id = account_info.get('id')
+        
+        token_data = {
+            "address": email,
+            "password": password
+        }
+        response = requests.post(f'{API_BASE_URL}/token', json=token_data)
+        if response.status_code == 401:
+            bot.send_message(CHAT_ID, "🚨 Ошибка авторизации при получении токена.")
+            return None, None, None
+        
+        response.raise_for_status()
+        token_info = response.json()
+        token = token_info.get('token')
+        
+        return email, password, token
+    except requests.exceptions.RequestException as e:
+        bot.send_message(CHAT_ID, f"Ошибка: {e}")
         return None, None, None
-    response.raise_for_status()
-    account_info = response.json()
-    account_id = account_info.get('id')
-    return email, password, account_id
-
-def get_token(email, password):
-    token_data = {
-        "address": email,
-        "password": password
-    }
-    response = requests.post(f'{API_BASE_URL}/token', json=token_data)
-    if response.status_code == 401:
-        bot.send_message(CHAT_ID, "🚨 Ошибка авторизации при получении токена.")
-        return None
-    response.raise_for_status()
-    token_info = response.json()
-    return token_info.get('token')
 
 def write_to_file(data):
     with open(FILE_PATH, 'a') as file:
@@ -80,6 +88,7 @@ def check_file_size_and_send():
 def main():
     domains = get_domains()
     count = 0
+    request_count = 0
 
     while True:
         try:
@@ -92,11 +101,8 @@ def main():
                 bot.send_message(CHAT_ID, f"🌟 Взято {total_emails} почт. Текущий размер файла: {file_size:.2f} MB 📁")
 
             domain = random.choice(domains)
-            email, password, account_id = create_account(domain)
-            if not email or not password:
-                continue
-            token = get_token(email, password)
-            if not token:
+            email, password, token = create_account_and_get_token(domain)
+            if not email or not password or not token:
                 continue
             write_to_file(f'{email}:{password}:{token}')
 
@@ -106,6 +112,13 @@ def main():
             print(f"Токен: {token}")
 
             count += 1
+            request_count += 1
+
+            # Управление частотой запросов
+            if request_count >= REQUEST_LIMIT:
+                bot.send_message(CHAT_ID, "⏳ Достигнут лимит запросов, делаем паузу...")
+                time.sleep(60)  # Ожидание перед следующими запросами
+                request_count = 0
 
             check_file_size_and_send()
 
@@ -118,4 +131,3 @@ def main():
 
 if __name__ == '__main__':
     main()
-    
