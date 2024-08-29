@@ -26,29 +26,43 @@ def generate_password(length=12):
     return ''.join(random.choice(characters) for i in range(length))
 
 def create_email():
+    # Получение списка доменов
     response = requests.get('https://api.mail.tm/domains')
+    if response.status_code != 200:
+        log_message(f'Ошибка при получении доменов: {response.status_code}')
+        return None, None, None
+    
     domains = response.json().get('hydra:member', [])
-    domain = domains[0]['domain'] if domains else None
+    if not domains:
+        log_message('Нет доступных доменов')
+        return None, None, None
+    
+    domain = domains[0]['domain']
+    address = f'user@{domain}'
+    password = generate_password()
 
-    if domain:
-        address = f'user@{domain}'
-        password = generate_password()
-        # Создание аккаунта
-        response = requests.post('https://api.mail.tm/accounts', json={
-            'address': address,
-            'password': password
-        })
-        if response.status_code == 201:
-            account_id = response.json().get('id')
-            # Получение токена
-            token_response = requests.post('https://api.mail.tm/token', json={
-                'address': address,
-                'password': password
-            })
-            if token_response.status_code == 201:
-                token = token_response.json().get('token')
-                return address, password, token
-    return None, None, None
+    # Создание аккаунта
+    response = requests.post('https://api.mail.tm/accounts', json={
+        'address': address,
+        'password': password
+    })
+    if response.status_code != 201:
+        log_message(f'Ошибка при создании аккаунта: {response.status_code}')
+        return None, None, None
+    
+    account_id = response.json().get('id')
+
+    # Получение токена
+    token_response = requests.post('https://api.mail.tm/token', json={
+        'address': address,
+        'password': password
+    })
+    if token_response.status_code != 201:
+        log_message(f'Ошибка при получении токена: {token_response.status_code}')
+        return None, None, None
+    
+    token = token_response.json().get('token')
+    return address, password, token
 
 def main():
     if os.path.exists(FILE_PATH):
@@ -73,6 +87,8 @@ def main():
                 bot.send_document(CHAT_ID, open(FILE_PATH, 'rb'))
                 open(FILE_PATH, 'w').close()  # Очистите файл после отправки
                 log_message(f"Файл отправлен, размер файла: {os.path.getsize(FILE_PATH) / (1024 * 1024):.2f} МБ")
+        else:
+            log_message('Не удалось создать почту')
         time.sleep(3)
 
 if __name__ == "__main__":
