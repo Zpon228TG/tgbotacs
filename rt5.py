@@ -24,33 +24,22 @@ def get_domains():
     return response.json()['hydra:member']
 
 # Функция для создания аккаунта
-def create_account(domain, token):
-    email = generate_random_string(10) + "@" + domain
-    password = generate_random_string(10)
+def create_account(domain, address, password):
     response = requests.post(
         f"{BASE_URL}/accounts",
-        headers={"Authorization": f"Bearer {token}"},
-        json={"address": email, "password": password}
+        json={"address": address, "password": password}
     )
     response.raise_for_status()
-    return email, password, response.json()['id']
+    return response.json()['id']
 
 # Функция для получения токена
 def get_token(address, password):
-    try:
-        response = requests.post(
-            f"{BASE_URL}/token",
-            json={"address": address, "password": password}
-        )
-        response.raise_for_status()
-        return response.json()['token']
-    except requests.exceptions.RequestException as e:
-        # Печать полного ответа для диагностики
-        print(f"Ошибка при получении токена: {e}")
-        if e.response:
-            print(f"Ответ от сервера: {e.response.text}")
-        send_telegram_message(f"Ошибка при получении токена: {e}\nОтвет от сервера: {e.response.text if e.response else 'Нет ответа'}")
-        raise
+    response = requests.post(
+        f"{BASE_URL}/token",
+        json={"address": address, "password": password}
+    )
+    response.raise_for_status()
+    return response.json()['token']
 
 # Функция для получения сообщений
 def get_messages(token):
@@ -72,33 +61,23 @@ def send_telegram_message(text):
 def main():
     domains = get_domains()
     domain = domains[0]['domain']  # Выберите первый домен
-    
-    # Создайте аккаунт, а затем получите токен
-    email, password, account_id = create_account(domain, token=None)  # Здесь token=None, так как мы еще не создали токен
-    print(f"Создан новый аккаунт: {email}, {password}, ID: {account_id}")
 
-    try:
-        token = get_token(email, password)
-    except requests.exceptions.RequestException as e:
-        print(f"Ошибка при получении токена: {e}")
-        send_telegram_message(f"Ошибка при получении токена: {e}")
-        return
-
-    file_path = "accounts.txt"
-    max_file_size_mb = 9
-
-    # Генерация и создание нового аккаунта
     while True:
         try:
-            email, password, account_id = create_account(domain, token)
-            print(f"Создан новый аккаунт: {email}, {password}, ID: {account_id}")
+            email = generate_random_string(10) + "@" + domain
+            password = generate_random_string(10)
+            
+            # Создайте аккаунт
+            account_id = create_account(domain, email, password)
+            print(f"Создан новый аккаунт: {email}, ID: {account_id}")
 
-            # Задержка для предотвращения ошибок из-за частых запросов
-            time.sleep(random.uniform(10, 25))
+            # Получите токен
+            token = get_token(email, password)
+            print(f"Получен токен: {token}")
 
-            # Получите список сообщений для проверки
-            messages = get_messages(token)
-            print(f"Получено сообщений: {len(messages)}")
+            # Генерация и создание нового аккаунта
+            file_path = "accounts.txt"
+            max_file_size_mb = 9
 
             # Запись данных в файл
             with open(file_path, "a") as file:
@@ -114,7 +93,7 @@ def main():
             # Уведомление о добавлении почты
             send_telegram_message(f"Взял 1 почту. Размер файла: {os.path.getsize(file_path) / (1024 * 1024):.2f} МБ")
 
-            # Запуск функции через 10-25 секунд
+            # Задержка для предотвращения ошибок из-за частых запросов
             time.sleep(random.uniform(10, 25))
         
         except requests.exceptions.HTTPError as err:
