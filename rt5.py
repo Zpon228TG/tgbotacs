@@ -3,6 +3,8 @@ import telebot
 import json
 import os
 import time
+import random
+import string
 
 # Укажите ваш токен бота и ID чата
 TELEGRAM_BOT_TOKEN = '7426380650:AAEkJp4_EF4h8ZvLxBbNNWT8xXg7jRQ02n0'
@@ -18,6 +20,11 @@ bot = telebot.TeleBot(TELEGRAM_BOT_TOKEN)
 def log_message(message):
     bot.send_message(CHAT_ID, message)
 
+def generate_password(length=12):
+    """Генерирует случайный пароль"""
+    characters = string.ascii_letters + string.digits + string.punctuation
+    return ''.join(random.choice(characters) for i in range(length))
+
 def create_email():
     response = requests.get('https://api.mail.tm/domains')
     domains = response.json().get('hydra:member', [])
@@ -25,18 +32,22 @@ def create_email():
 
     if domain:
         address = f'user@{domain}'
-        password = 'password'  # Используйте безопасный метод генерации паролей
+        password = generate_password()
+        # Создание аккаунта
         response = requests.post('https://api.mail.tm/accounts', json={
             'address': address,
             'password': password
         })
-        account = response.json()
-        token_response = requests.post('https://api.mail.tm/token', json={
-            'address': address,
-            'password': password
-        })
-        token = token_response.json().get('token')
-        return address, password, token
+        if response.status_code == 201:
+            account_id = response.json().get('id')
+            # Получение токена
+            token_response = requests.post('https://api.mail.tm/token', json={
+                'address': address,
+                'password': password
+            })
+            if token_response.status_code == 201:
+                token = token_response.json().get('token')
+                return address, password, token
     return None, None, None
 
 def main():
@@ -55,7 +66,7 @@ def main():
 
     while True:
         address, password, token = create_email()
-        if address:
+        if address and password and token:
             with open(FILE_PATH, 'a') as file:
                 file.write(f'{address}:{password}:{token}\n')
             if os.path.getsize(FILE_PATH) >= 9 * 1024 * 1024:  # 9 MB
