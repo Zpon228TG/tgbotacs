@@ -2,16 +2,13 @@ import requests
 import random
 import string
 import time
-import json
 import os
-from telegram import Update, Bot
-from telegram.ext import Updater, CommandHandler, CallbackContext
-from telegram.error import TelegramError
+import telebot
 
 # Конфигурация Telegram-бота
 TELEGRAM_TOKEN = '7426380650:AAEkJp4_EF4h8ZvLxBbNNWT8xXg7jRQ02n0'
 CHAT_ID = '7412395676'
-bot = Bot(token=TELEGRAM_TOKEN)
+bot = telebot.TeleBot(TELEGRAM_TOKEN)
 
 # URL API
 BASE_URL = "https://api.mail.tm"
@@ -60,7 +57,7 @@ def get_messages(token):
 def send_telegram_message(text):
     try:
         bot.send_message(chat_id=CHAT_ID, text=text)
-    except TelegramError as e:
+    except Exception as e:
         print(f"Ошибка при отправке сообщения в Telegram: {e}")
 
 # Основная функция
