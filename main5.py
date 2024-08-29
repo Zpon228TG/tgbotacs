@@ -4,7 +4,7 @@ import string
 import time
 import json
 import os
-from telegram import Bot
+from telegram import Bot, TelegramError
 
 # Конфигурация Telegram-бота
 TELEGRAM_TOKEN = '7426380650:AAEkJp4_EF4h8ZvLxBbNNWT8xXg7jRQ02n0'
@@ -56,50 +56,57 @@ def get_messages(token):
 
 # Функция для отправки сообщения в Telegram
 def send_telegram_message(text):
-    bot.send_message(chat_id=CHAT_ID, text=text)
+    try:
+        bot.send_message(chat_id=CHAT_ID, text=text)
+    except TelegramError as e:
+        print(f"Ошибка при отправке сообщения в Telegram: {e}")
 
 # Основная функция
 def main():
     domains = get_domains()
     domain = domains[0]['domain']  # Выберите первый домен
     
-    # Предполагаем, что у нас есть доступ к аккаунту с этой почтой и паролем
+    # Получите токен для существующего аккаунта
     address = "existing@example.com"
     password = "existing_password"
     
-    # Получите токен для существующего аккаунта
-    token = get_token(address, password)
-    
+    try:
+        token = get_token(address, password)
+    except requests.exceptions.RequestException as e:
+        print(f"Ошибка при получении токена: {e}")
+        send_telegram_message(f"Ошибка при получении токена: {e}")
+        return
+
     file_path = "accounts.txt"
     max_file_size_mb = 9
-    
+
     # Генерация и создание нового аккаунта
     while True:
         try:
             email, password, account_id = create_account(domain, token)
             print(f"Создан новый аккаунт: {email}, {password}, ID: {account_id}")
-            
+
             # Задержка для предотвращения ошибок из-за частых запросов
             time.sleep(random.uniform(10, 25))
-            
+
             # Получите список сообщений для проверки
             messages = get_messages(token)
             print(f"Получено сообщений: {len(messages)}")
-            
+
             # Запись данных в файл
             with open(file_path, "a") as file:
                 file.write(f"{email}:{password}:{token}\n")
-            
+
             # Проверка размера файла и отправка в Telegram
             if os.path.getsize(file_path) > max_file_size_mb * 1024 * 1024:
                 send_telegram_message(f"#почты Файл превышает {max_file_size_mb} МБ, отправляю...")
                 with open(file_path, "rb") as file:
                     bot.send_document(chat_id=CHAT_ID, document=file)
                 os.remove(file_path)
-            
+
             # Уведомление о добавлении почты
             send_telegram_message(f"Взял 1 почту. Размер файла: {os.path.getsize(file_path) / (1024 * 1024):.2f} МБ")
-            
+
             # Запуск функции через 10-25 секунд
             time.sleep(random.uniform(10, 25))
         
