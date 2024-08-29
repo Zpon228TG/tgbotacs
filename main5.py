@@ -4,7 +4,9 @@ import string
 import time
 import json
 import os
-from telegram import Bot, TelegramError
+from telegram import Update, Bot
+from telegram.ext import Updater, CommandHandler, CallbackContext
+from telegram.error import TelegramError
 
 # Конфигурация Telegram-бота
 TELEGRAM_TOKEN = '7426380650:AAEkJp4_EF4h8ZvLxBbNNWT8xXg7jRQ02n0'
