@@ -18,7 +18,11 @@ bot = TeleBot(TELEGRAM_BOT_TOKEN)
 
 def generate_password(length=12):
     characters = string.ascii_letters + string.digits + string.punctuation
-    return ''.join(random.choice(characters) for i in range(length))
+    return ''.join(random.choice(characters) for _ in range(length))
+
+def generate_email(domain):
+    username = ''.join(random.choices(string.ascii_letters + string.digits, k=10))
+    return f'{username}@{domain}'
 
 def get_domains():
     response = requests.get(f'{API_BASE_URL}/domains')
@@ -27,7 +31,7 @@ def get_domains():
     return [domain["domain"] for domain in domains]
 
 def create_account(domain):
-    email = f'user_{random.randint(1000000, 9999999)}@{domain}'
+    email = generate_email(domain)
     password = generate_password()
     account_data = {
         "address": email,
@@ -88,7 +92,9 @@ def main():
             count += 1
 
             check_file_size_and_send()
-            time.sleep(3)
+
+            # Время ожидания от 3 до 9 секунд
+            time.sleep(random.uniform(3, 9))
 
         except requests.exceptions.RequestException as e:
             print(f"Ошибка: {e}")
