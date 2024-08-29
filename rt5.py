@@ -30,7 +30,7 @@ def create_account(domain, address, password):
         json={"address": address, "password": password}
     )
     response.raise_for_status()
-    return response.json()['id']
+    return response.json()
 
 # Функция для получения токена
 def get_token(address, password):
@@ -68,7 +68,8 @@ def main():
             password = generate_random_string(10)
             
             # Создайте аккаунт
-            account_id = create_account(domain, email, password)
+            account_data = create_account(domain, email, password)
+            account_id = account_data['id']
             print(f"Создан новый аккаунт: {email}, ID: {account_id}")
 
             # Получите токен
