@@ -2,6 +2,8 @@ import requests
 import json
 import time
 import os
+import random
+import string
 from telebot import TeleBot
 
 # Настройки
@@ -14,6 +16,14 @@ API_BASE_URL = 'https://api.mail.tm'
 # Инициализация бота
 bot = TeleBot(TELEGRAM_BOT_TOKEN)
 
+def generate_password(length=12):
+    characters = string.ascii_letters + string.digits + string.punctuation
+    return ''.join(random.choice(characters) for i in range(length))
+
+def generate_email(domain):
+    random_string = ''.join(random.choices(string.ascii_lowercase + string.digits, k=8))
+    return f'user_{random_string}@{domain}'
+
 def get_domains():
     response = requests.get(f'{API_BASE_URL}/domains')
     response.raise_for_status()
@@ -21,8 +31,8 @@ def get_domains():
     return [domain["domain"] for domain in domains]
 
 def create_account(domain):
-    email = f'test_{int(time.time())}@{domain}'
-    password = 'Password123'
+    email = generate_email(domain)
+    password = generate_password()
     account_data = {
         "address": email,
         "password": password
@@ -56,7 +66,7 @@ def send_file_via_telegram(file_path):
 def check_file_size_and_send():
     file_size_mb = os.path.getsize(FILE_PATH) / (1024 * 1024)
     if file_size_mb >= MAX_FILE_SIZE_MB:
-        bot.send_message(CHAT_ID, f"#почты")
+        bot.send_message(CHAT_ID, f"📂 #почты")
         send_file_via_telegram(FILE_PATH)
         os.remove(FILE_PATH)
 
@@ -69,7 +79,7 @@ def main():
             if count % 5 == 0 and count > 0:
                 file_size = os.path.getsize(FILE_PATH) / (1024 * 1024)
                 total_emails = count
-                bot.send_message(CHAT_ID, f"Взято {total_emails} почт. Текущий размер файла: {file_size:.2f} MB")
+                bot.send_message(CHAT_ID, f"✨ Взято {total_emails} почт. Текущий размер файла: {file_size:.2f} MB 📁")
 
             domain = domains[count % len(domains)]
             email, password, account_id = create_account(domain)
