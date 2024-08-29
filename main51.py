@@ -13,6 +13,7 @@ FILE_PATH = 'emails.txt'
 MAX_FILE_SIZE_MB = 9
 API_BASE_URL = 'https://api.mail.tm'
 REQUEST_LIMIT = 10  # Количество запросов до ожидания
+WAIT_TIME = 60      # Время ожидания при ошибке 429 (в секундах)
 
 # Инициализация бота
 bot = TeleBot(TELEGRAM_BOT_TOKEN)
@@ -26,13 +27,17 @@ def generate_email(domain):
     return f'{username}@{domain}'
 
 def get_domains():
-    response = requests.get(f'{API_BASE_URL}/domains')
-    if response.status_code == 401:
-        bot.send_message(CHAT_ID, "🚨 Ошибка авторизации: проверьте токен API.")
+    try:
+        response = requests.get(f'{API_BASE_URL}/domains')
+        response.raise_for_status()
+        domains = response.json()["hydra:member"]
+        return [domain["domain"] for domain in domains]
+    except requests.exceptions.HTTPError as e:
+        if response.status_code == 401:
+            bot.send_message(CHAT_ID, "🚨 Ошибка авторизации: проверьте токен API.")
+        else:
+            bot.send_message(CHAT_ID, f"Ошибка при получении доменов: {e}")
         return []
-    response.raise_for_status()
-    domains = response.json()["hydra:member"]
-    return [domain["domain"] for domain in domains]
 
 def create_account_and_get_token(domain):
     email = generate_email(domain)
@@ -44,8 +49,9 @@ def create_account_and_get_token(domain):
     
     try:
         response = requests.post(f'{API_BASE_URL}/accounts', json=account_data)
-        if response.status_code == 401:
-            bot.send_message(CHAT_ID, "🚨 Ошибка авторизации при создании аккаунта.")
+        if response.status_code == 429:
+            bot.send_message(CHAT_ID, "🚨 Слишком много запросов, делаем паузу...")
+            time.sleep(WAIT_TIME)
             return None, None, None
         
         response.raise_for_status()
@@ -57,8 +63,9 @@ def create_account_and_get_token(domain):
             "password": password
         }
         response = requests.post(f'{API_BASE_URL}/token', json=token_data)
-        if response.status_code == 401:
-            bot.send_message(CHAT_ID, "🚨 Ошибка авторизации при получении токена.")
+        if response.status_code == 429:
+            bot.send_message(CHAT_ID, "🚨 Слишком много запросов, делаем паузу...")
+            time.sleep(WAIT_TIME)
             return None, None, None
         
         response.raise_for_status()
