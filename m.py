@@ -94,14 +94,15 @@ def check_file_size_and_send():
 
 def main():
     domains = get_domains()
+    if not domains:
+        bot.send_message(CHAT_ID, "🚨 Не удалось получить домены. Завершение работы.")
+        return
+
     count = 0
     request_count = 0
 
     while True:
         try:
-            if not domains:
-                break
-
             if count % 25 == 0 and count > 0:
                 file_size = os.path.getsize(FILE_PATH) / (1024 * 1024)
                 total_emails = count
