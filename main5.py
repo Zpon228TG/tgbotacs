@@ -71,6 +71,10 @@ def create_account_and_get_token(domain):
         token_info = response.json()
         token = token_info.get('token')
         
+        if not token:
+            bot.send_message(CHAT_ID, f"🚨 Не удалось получить токен для почты {email}.")
+            return None, None, None
+        
         return email, password, token
     except requests.exceptions.RequestException as e:
         bot.send_message(CHAT_ID, f"🚨 Ошибка: {e}")
