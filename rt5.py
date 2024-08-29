@@ -37,12 +37,20 @@ def create_account(domain, token):
 
 # Функция для получения токена
 def get_token(address, password):
-    response = requests.post(
-        f"{BASE_URL}/token",
-        json={"address": address, "password": password}
-    )
-    response.raise_for_status()
-    return response.json()['token']
+    try:
+        response = requests.post(
+            f"{BASE_URL}/token",
+            json={"address": address, "password": password}
+        )
+        response.raise_for_status()
+        return response.json()['token']
+    except requests.exceptions.RequestException as e:
+        # Печать полного ответа для диагностики
+        print(f"Ошибка при получении токена: {e}")
+        if e.response:
+            print(f"Ответ от сервера: {e.response.text}")
+        send_telegram_message(f"Ошибка при получении токена: {e}\nОтвет от сервера: {e.response.text if e.response else 'Нет ответа'}")
+        raise
 
 # Функция для получения сообщений
 def get_messages(token):
