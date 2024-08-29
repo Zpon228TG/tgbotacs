@@ -38,6 +38,8 @@ def get_token(address, password):
         f"{BASE_URL}/token",
         json={"address": address, "password": password}
     )
+    if response.status_code != 200:
+        print(f"Ошибка при получении токена: {response.status_code}, {response.text}")
     response.raise_for_status()
     return response.json()['token']
 
