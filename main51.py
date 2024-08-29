@@ -26,6 +26,9 @@ def generate_email(domain):
 
 def get_domains():
     response = requests.get(f'{API_BASE_URL}/domains')
+    if response.status_code == 401:
+        bot.send_message(CHAT_ID, "🚨 Ошибка авторизации: проверьте токен API.")
+        return []
     response.raise_for_status()
     domains = response.json()["hydra:member"]
     return [domain["domain"] for domain in domains]
@@ -38,6 +41,9 @@ def create_account(domain):
         "password": password
     }
     response = requests.post(f'{API_BASE_URL}/accounts', json=account_data)
+    if response.status_code == 401:
+        bot.send_message(CHAT_ID, "🚨 Ошибка авторизации при создании аккаунта.")
+        return None, None, None
     response.raise_for_status()
     account_info = response.json()
     account_id = account_info.get('id')
@@ -49,6 +55,9 @@ def get_token(email, password):
         "password": password
     }
     response = requests.post(f'{API_BASE_URL}/token', json=token_data)
+    if response.status_code == 401:
+        bot.send_message(CHAT_ID, "🚨 Ошибка авторизации при получении токена.")
+        return None
     response.raise_for_status()
     token_info = response.json()
     return token_info.get('token')
@@ -74,6 +83,9 @@ def main():
 
     while True:
         try:
+            if not domains:
+                break
+
             if count % 25 == 0 and count > 0:
                 file_size = os.path.getsize(FILE_PATH) / (1024 * 1024)
                 total_emails = count
@@ -81,7 +93,11 @@ def main():
 
             domain = random.choice(domains)
             email, password, account_id = create_account(domain)
+            if not email or not password:
+                continue
             token = get_token(email, password)
+            if not token:
+                continue
             write_to_file(f'{email}:{password}:{token}')
 
             # Информация в терминале
@@ -97,8 +113,9 @@ def main():
             time.sleep(random.uniform(3, 9))
 
         except requests.exceptions.RequestException as e:
-            print(f"Ошибка: {e}")
+            bot.send_message(CHAT_ID, f"Ошибка: {e}")
             time.sleep(5)  # Ожидание перед повтором в случае ошибки
 
 if __name__ == '__main__':
     main()
+    
