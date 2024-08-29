@@ -73,12 +73,12 @@ def main():
     domains = get_domains()
     domain = domains[0]['domain']  # Выберите первый домен
     
-    # Получите токен для существующего аккаунта
-    address = "existing@example.com"
-    password = "existing_password"
-    
+    # Создайте аккаунт, а затем получите токен
+    email, password, account_id = create_account(domain, token=None)  # Здесь token=None, так как мы еще не создали токен
+    print(f"Создан новый аккаунт: {email}, {password}, ID: {account_id}")
+
     try:
-        token = get_token(address, password)
+        token = get_token(email, password)
     except requests.exceptions.RequestException as e:
         print(f"Ошибка при получении токена: {e}")
         send_telegram_message(f"Ошибка при получении токена: {e}")
