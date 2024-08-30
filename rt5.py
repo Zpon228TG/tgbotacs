@@ -1,59 +1,82 @@
 import pymailtm
-import time
 import json
+import time
 import os
-import telebot
+import logging
+import requests
 
-# Set up the bot token and chat ID
-bot_token = '7426380650:AAEkJp4_EF4h8ZvLxBbNNWT8xXg7jRQ02n0'
-chat_id = '7412395676'
-bot = telebot.TeleBot(bot_token)
+# Установим логирование
+logging.basicConfig(level=logging.INFO)
 
-# File and record management
-file_path = 'emails.txt'
-max_entries = 2500
-email_count = 0
+# Инициализация клиента Temp-Mail
+client = pymailtm.Client()
 
-# Notification thresholds
-notify_threshold = 15
-entries_for_notification = 0
-
+# Функция для генерации данных почты
 def generate_email_data():
-    global email_count, entries_for_notification
-
+    email_count = 0
+    email_file = "emails.txt"
+    
+    # Проверяем, существует ли файл, если нет - создаем его
+    if not os.path.exists(email_file):
+        with open(email_file, 'w') as f:
+            pass
+    
     while True:
         try:
-            # Initialize the Email domain and Account object from pymailtm
-            session = pymailtm.Account()
-            email = session.address  # Assuming 'address' returns the email
-            password = session.password  # Assuming 'password' returns the password
-            token = session.id  # Assuming 'id' returns the token (session or account id)
+            domain = client.get_domains()[0]
+            account = client.get_account()
+            
+            # Генерация пароля
+            password = "password123"  # Здесь можно использовать любой генератор паролей
+            token = client.get_token()
 
-            # Write to file in the format "Email:Password:Token"
-            with open(file_path, 'a') as f:
-                f.write(f'{email}:{password}:{token}\n')
+            email = account.address
 
+            with open(email_file, "a") as file:
+                file.write(f"{email}:{password}:{token}\n")
+            
             email_count += 1
-            entries_for_notification += 1
 
-            # Notify every 15 emails
-            if entries_for_notification >= notify_threshold:
-                bot.send_message(chat_id, f'📧 Successfully generated {email_count} emails!')
-                entries_for_notification = 0
+            # Проверка на количество почт для уведомления
+            if email_count == 15:
+                send_telegram_message("✅ Получено 15 почт!")
 
-            # Check if file reached max size or max entries
-            if email_count >= max_entries or os.path.getsize(file_path) > 9 * 1024 * 1024:
-                bot.send_document(chat_id, open(file_path, 'rb'), caption="#почты 📂")
-                os.remove(file_path)
+            # Проверка на достижение 2500 почт или размер файла в 9МБ
+            if email_count >= 2500 or os.path.getsize(email_file) >= 9 * 1024 * 1024:
+                send_file_to_telegram(email_file)
+                open(email_file, 'w').close()  # Очищаем файл
                 email_count = 0
-
-            time.sleep(3)  # Wait for 3 seconds before generating next email
-
+            
+            logging.info(f"Успешно создано: {email}:{password}:{token}")
+        
         except Exception as e:
-            bot.send_message(chat_id, f'Error: {str(e)}')
+            logging.error(f"Ошибка при создании почты: {str(e)}")
+        
+        # Ожидание перед следующей итерацией
+        time.sleep(3)
 
+# Функция для отправки сообщения в Telegram
+def send_telegram_message(message):
+    bot_token = "7426380650:AAEkJp4_EF4h8ZvLxBbNNWT8xXg7jRQ02n0"
+    chat_id = "7412395676"
+    url = f"https://api.telegram.org/bot{bot_token}/sendMessage"
+    payload = {
+        "chat_id": chat_id,
+        "text": message
+    }
+    requests.post(url, data=payload)
+
+# Функция для отправки файла в Telegram
+def send_file_to_telegram(file_path):
+    bot_token = "7426380650:AAEkJp4_EF4h8ZvLxBbNNWT8xXg7jRQ02n0"
+    chat_id = "7412395676"
+    url = f"https://api.telegram.org/bot{bot_token}/sendDocument"
+    files = {"document": open(file_path, "rb")}
+    data = {"chat_id": chat_id, "caption": "#почты"}
+    requests.post(url, files=files, data=data)
+
+# Основная функция
 def main():
-    bot.send_message(chat_id, '📧 Email generation bot started!')
     generate_email_data()
 
 if __name__ == "__main__":
