@@ -26,13 +26,15 @@ def send_telegram_file():
 
 def generate_email_data():
     global email_count
-    domain = pymailtm.get_domain()
-    email_address = pymailtm.gen_address(domain)
-    password = pymailtm.gen_password()
-    
+    client = pymailtm.EmailClient()
+
     try:
-        account = pymailtm.Account(email=email_address, password=password)
+        domain = client.get_domains()[0]  # Получаем первый доступный домен
+        account = client.get_account()  # Создаем новый аккаунт
+        email_address = account.address
+        password = account.password
         token = account.token
+
     except pymailtm.PyMailTMException as e:
         print(f"Ошибка при создании аккаунта: {e}")
         return None
