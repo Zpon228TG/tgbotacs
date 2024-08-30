@@ -23,15 +23,11 @@ def generate_email_data():
 
     while True:
         try:
-            # Replace these with the correct methods after verifying the module
-            client = pymailtm.Client()  # Initialize the client (Placeholder)
-            domain = client.get_domains()  # Get available domains (Placeholder)
-
-            # Generate email address, password, and token
-            account = client.register(domain)
-            email = account['address']
-            password = account['password']
-            token = account['token']
+            # Initialize the Email domain and Account object from pymailtm
+            session = pymailtm.Account()
+            email = session.address  # Assuming 'address' returns the email
+            password = session.password  # Assuming 'password' returns the password
+            token = session.id  # Assuming 'id' returns the token (session or account id)
 
             # Write to file in the format "Email:Password:Token"
             with open(file_path, 'a') as f:
