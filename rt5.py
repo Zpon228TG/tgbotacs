@@ -1,6 +1,5 @@
 import requests
 import telebot
-import json
 import os
 import time
 import random
@@ -12,83 +11,77 @@ CHAT_ID = '7412395676'
 
 # Путь к файлу
 FILE_PATH = 'emails.txt'
-MAX_EMAILS = 2500
+MAX_FILE_SIZE_MB = 9
 
-# Создайте бота
+# Создаем бота
 bot = telebot.TeleBot(TELEGRAM_BOT_TOKEN)
 
 def log_message(message):
+    """Функция для отправки сообщения в Telegram"""
     bot.send_message(CHAT_ID, message)
 
 def generate_password(length=12):
-    """Генерирует случайный пароль"""
-    characters = string.ascii_letters + string.digits + string.punctuation
+    """Генерация случайного пароля"""
+    characters = string.ascii_letters + string.digits
     return ''.join(random.choice(characters) for i in range(length))
 
 def create_email():
+    """Функция для создания почты и получения токена"""
     # Получение списка доменов
-    response = requests.get('https://api.mail.tm/domains')
-    if response.status_code != 200:
-        log_message(f'Ошибка при получении доменов: {response.status_code}')
+    domain_response = requests.get('https://api.mail.tm/domains')
+    if domain_response.status_code != 200:
+        log_message(f'Ошибка при получении доменов: {domain_response.status_code}')
         return None, None, None
     
-    domains = response.json().get('hydra:member', [])
-    if not domains:
-        log_message('Нет доступных доменов')
+    domain_data = domain_response.json()
+    if not domain_data.get('hydra:member'):
+        log_message('Ошибка: Список доменов пуст')
         return None, None, None
     
-    domain = domains[0]['domain']
-    address = f'user@{domain}'
-    password = generate_password()
+    domain = domain_data['hydra:member'][0]['domain']
+    email_address = f"user@{domain}"
+    email_password = generate_password()
 
     # Создание аккаунта
-    response = requests.post('https://api.mail.tm/accounts', json={
-        'address': address,
-        'password': password
+    create_response = requests.post('https://api.mail.tm/accounts', json={
+        'address': email_address,
+        'password': email_password
     })
-    if response.status_code != 201:
-        log_message(f'Ошибка при создании аккаунта: {response.status_code}')
+    if create_response.status_code != 201:
+        log_message(f'Ошибка при создании аккаунта: {create_response.status_code}')
         return None, None, None
-    
-    account_id = response.json().get('id')
 
     # Получение токена
     token_response = requests.post('https://api.mail.tm/token', json={
-        'address': address,
-        'password': password
+        'address': email_address,
+        'password': email_password
     })
     if token_response.status_code != 201:
         log_message(f'Ошибка при получении токена: {token_response.status_code}')
         return None, None, None
     
-    token = token_response.json().get('token')
-    return address, password, token
+    email_token = token_response.json().get('token')
+    return email_address, email_password, email_token
 
 def main():
-    if os.path.exists(FILE_PATH):
-        with open(FILE_PATH, 'r') as file:
-            lines = file.readlines()
-            if len(lines) >= MAX_EMAILS:
-                bot.send_document(CHAT_ID, open(FILE_PATH, 'rb'))
-                open(FILE_PATH, 'w').close()  # Очистите файл после отправки
-                log_message(f"Файл отправлен, размер файла: {os.path.getsize(FILE_PATH) / (1024 * 1024):.2f} МБ")
-                return
-    else:
-        open(FILE_PATH, 'w').close()  # Создайте файл, если он не существует
-
+    """Основная функция для управления процессом создания почт и записи в файл"""
     log_message('Скрипт запущен')
 
     while True:
-        address, password, token = create_email()
-        if address and password and token:
+        email_address, email_password, email_token = create_email()
+        if email_address and email_password and email_token:
             with open(FILE_PATH, 'a') as file:
-                file.write(f'{address}:{password}:{token}\n')
-            if os.path.getsize(FILE_PATH) >= 9 * 1024 * 1024:  # 9 MB
+                file.write(f'{email_address}:{email_password}:{email_token}\n')
+            
+            # Проверка размера файла
+            if os.path.getsize(FILE_PATH) >= MAX_FILE_SIZE_MB * 1024 * 1024:  # 9 МБ
                 bot.send_document(CHAT_ID, open(FILE_PATH, 'rb'))
-                open(FILE_PATH, 'w').close()  # Очистите файл после отправки
-                log_message(f"Файл отправлен, размер файла: {os.path.getsize(FILE_PATH) / (1024 * 1024):.2f} МБ")
+                open(FILE_PATH, 'w').close()  # Очистка файла после отправки
+                log_message(f'Файл отправлен. Размер файла достиг {MAX_FILE_SIZE_MB} МБ.')
         else:
             log_message('Не удалось создать почту')
+
+        # Задержка между запросами
         time.sleep(3)
 
 if __name__ == "__main__":
