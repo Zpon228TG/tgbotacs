@@ -1,78 +1,56 @@
 import time
-import json
 import os
-import logging
 import requests
-from pymailtm import Account
+from pymailtm import MailTm
+from telegram import Bot
 
-# Установим логирование
-logging.basicConfig(level=logging.INFO)
+# Настройки Telegram
+TELEGRAM_TOKEN = '7426380650:AAEkJp4_EF4h8ZvLxBbNNWT8xXg7jRQ02n0'
+CHAT_ID = '7412395676'
+bot = Bot(token=TELEGRAM_TOKEN)
 
-# Функция для генерации данных почты
-def generate_email_data():
-    email_count = 0
-    email_file = "emails.txt"
-    
-    # Проверяем, существует ли файл, если нет - создаем его
-    if not os.path.exists(email_file):
-        with open(email_file, 'w') as f:
-            pass
+# Настройки Temp Mail
+MAILTM_API_KEY = 'your_mailtm_api_key'
+mailtm = MailTm(api_key=MAILTM_API_KEY)
+
+# Параметры файла
+FILE_PATH = 'emails.txt'
+MAX_FILE_SIZE_MB = 9
+MAX_RECORDS = 2500
+
+def send_file_to_telegram(file_path):
+    with open(file_path, 'rb') as file:
+        bot.send_document(chat_id=CHAT_ID, document=file, caption='#почты')
+
+def notify_user(message):
+    bot.send_message(chat_id=CHAT_ID, text=message)
+
+def get_new_email():
+    return mailtm.create_mail()
+
+def main():
+    email_records = []
     
     while True:
-        try:
-            # Создаем новый аккаунт
-            account = Account()  # Здесь Account создается напрямую
+        email = get_new_email()
+        email_records.append(f"{email['email']}:{email['password']}:{email['token']}\n")
 
-            email = account.address
-            password = account.password
-            token = account.id
-
-            with open(email_file, "a") as file:
-                file.write(f"{email}:{password}:{token}\n")
+        # Запись в файл
+        if len(email_records) >= MAX_RECORDS or (os.path.exists(FILE_PATH) and os.path.getsize(FILE_PATH) / (1024 * 1024) >= MAX_FILE_SIZE_MB):
+            with open(FILE_PATH, 'a') as file:
+                file.writelines(email_records)
             
-            email_count += 1
-
-            # Проверка на количество почт для уведомления
-            if email_count == 15:
-                send_telegram_message("✅ Получено 15 почт!")
-
-            # Проверка на достижение 2500 почт или размер файла в 9МБ
-            if email_count >= 2500 or os.path.getsize(email_file) >= 9 * 1024 * 1024:
-                send_file_to_telegram(email_file)
-                open(email_file, 'w').close()  # Очищаем файл
-                email_count = 0
+            # Отправка файла и очистка данных
+            send_file_to_telegram(FILE_PATH)
+            email_records = []
+            if os.path.exists(FILE_PATH):
+                os.remove(FILE_PATH)
             
-            logging.info(f"Успешно создано: {email}:{password}:{token}")
-        
-        except Exception as e:
-            logging.error(f"Ошибка при создании почты: {str(e)}")
-        
-        # Ожидание перед следующей итерацией
+            # Отправка уведомления
+            notify_user(f"Файл с почтами отправлен. Всего почт: {len(email_records)}")
+
+        # Периодическая задержка
         time.sleep(3)
-
-# Функция для отправки сообщения в Telegram
-def send_telegram_message(message):
-    bot_token = "7426380650:AAEkJp4_EF4h8ZvLxBbNNWT8xXg7jRQ02n0"
-    chat_id = "7412395676"
-    url = f"https://api.telegram.org/bot{bot_token}/sendMessage"
-    payload = {
-        "chat_id": chat_id,
-        "text": message
-    }
-    requests.post(url, data=payload)
-
-# Функция для отправки файла в Telegram
-def send_file_to_telegram(file_path):
-    bot_token = "7426380650:AAEkJp4_EF4h8ZvLxBbNNWT8xXg7jRQ02n0"
-    chat_id = "7412395676"
-    url = f"https://api.telegram.org/bot{bot_token}/sendDocument"
-    files = {"document": open(file_path, "rb")}
-    data = {"chat_id": chat_id, "caption": "#почты"}
-    requests.post(url, files=files, data=data)
-
-# Основная функция
-def main():
-    generate_email_data()
 
 if __name__ == "__main__":
     main()
