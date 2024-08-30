@@ -1,5 +1,6 @@
 import time
 import os
+import requests
 from pymailtm import MailTm
 import telebot
 
@@ -10,12 +11,7 @@ bot = telebot.TeleBot(TELEGRAM_TOKEN)
 
 # Настройки Temp Mail
 MAILTM_API_KEY = 'your_mailtm_api_key'
-mailtm = MailTm(api_key=MAILTM_API_KEY)
-
-# Параметры файла
-FILE_PATH = 'emails.txt'
-MAX_FILE_SIZE_MB = 9
-MAX_RECORDS = 2500
+mailtm = MailTm()  # Попробуйте инициализировать без аргументов
 
 def send_file_to_telegram(file_path):
     with open(file_path, 'rb') as file:
@@ -25,7 +21,8 @@ def notify_user(message):
     bot.send_message(chat_id=CHAT_ID, text=message)
 
 def get_new_email():
-    return mailtm.create_mail()
+    response = mailtm.create_mail()  # Обновите метод, если он другой
+    return response
 
 def main():
     email_records = []
