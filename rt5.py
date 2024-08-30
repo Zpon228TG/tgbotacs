@@ -1,15 +1,12 @@
-import pymailtm
-import json
 import time
+import json
 import os
 import logging
 import requests
+from pymailtm import Account
 
 # Установим логирование
 logging.basicConfig(level=logging.INFO)
-
-# Инициализация клиента Temp-Mail
-client = pymailtm.Client()
 
 # Функция для генерации данных почты
 def generate_email_data():
@@ -23,14 +20,12 @@ def generate_email_data():
     
     while True:
         try:
-            domain = client.get_domains()[0]
-            account = client.get_account()
-            
-            # Генерация пароля
-            password = "password123"  # Здесь можно использовать любой генератор паролей
-            token = client.get_token()
+            # Создаем новый аккаунт
+            account = Account()  # Здесь Account создается напрямую
 
             email = account.address
+            password = account.password
+            token = account.id
 
             with open(email_file, "a") as file:
                 file.write(f"{email}:{password}:{token}\n")
