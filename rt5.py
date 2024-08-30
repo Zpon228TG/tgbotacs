@@ -1,13 +1,12 @@
 import time
 import os
-import requests
 from pymailtm import MailTm
-from telegram import Bot
+import telebot
 
 # Настройки Telegram
 TELEGRAM_TOKEN = '7426380650:AAEkJp4_EF4h8ZvLxBbNNWT8xXg7jRQ02n0'
 CHAT_ID = '7412395676'
-bot = Bot(token=TELEGRAM_TOKEN)
+bot = telebot.TeleBot(TELEGRAM_TOKEN)
 
 # Настройки Temp Mail
 MAILTM_API_KEY = 'your_mailtm_api_key'
@@ -35,7 +34,7 @@ def main():
         email = get_new_email()
         email_records.append(f"{email['email']}:{email['password']}:{email['token']}\n")
 
-        # Запись в файл
+        # Запись в файл и отправка, если достигнут лимит
         if len(email_records) >= MAX_RECORDS or (os.path.exists(FILE_PATH) and os.path.getsize(FILE_PATH) / (1024 * 1024) >= MAX_FILE_SIZE_MB):
             with open(FILE_PATH, 'a') as file:
                 file.writelines(email_records)
