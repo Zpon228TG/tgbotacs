@@ -20,9 +20,14 @@ def log_message(message):
     """Функция для отправки сообщения в Telegram"""
     bot.send_message(CHAT_ID, message)
 
+def generate_random_string(length=8):
+    """Генерация случайной строки"""
+    characters = string.ascii_letters + string.digits
+    return ''.join(random.choice(characters) for i in range(length))
+
 def generate_password(length=12):
     """Генерация случайного пароля"""
-    characters = string.ascii_letters + string.digits
+    characters = string.ascii_letters + string.digits + string.punctuation
     return ''.join(random.choice(characters) for i in range(length))
 
 def create_email():
@@ -39,7 +44,7 @@ def create_email():
         return None, None, None
     
     domain = domain_data['hydra:member'][0]['domain']
-    email_address = f"user@{domain}"
+    email_address = f"{generate_random_string()}@{domain}"
     email_password = generate_password()
 
     # Создание аккаунта
@@ -48,7 +53,7 @@ def create_email():
         'password': email_password
     })
     if create_response.status_code != 201:
-        log_message(f'Ошибка при создании аккаунта: {create_response.status_code}')
+        log_message(f'Ошибка при создании аккаунта: {create_response.status_code} - {create_response.text}')
         return None, None, None
 
     # Получение токена
