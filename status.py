@@ -224,8 +224,20 @@ def process_schedule_photo(message):
         file_info = bot.get_file(message.photo[-1].file_id)
         file_path = file_info.file_path
         file = bot.download_file(file_path)
-        with open(os.path.join(SCHEDULE_PHOTO_PATH, 'schedule.jpg'), 'wb') as f:
+        saved_path = os.path.join(SCHEDULE_PHOTO_PATH, 'schedule.jpg')
+        with open(saved_path, 'wb') as f:
             f.write(file)
+
+        # Сохранение пути к расписанию
+        data = load_data()
+        data['schedule_photo'] = saved_path
+        save_data(data)
+
+        # Отправка уведомления о том, что расписание добавлено
+        bot.send_message(message.chat.id, "Фото расписания успешно добавлено.")
+    else:
+        bot.send_message(message.chat.id, "Пожалуйста, отправьте фото.")
+
 
 @bot.message_handler(regexp="👑 Админка")
 def admin_panel(message):
