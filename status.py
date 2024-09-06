@@ -58,6 +58,54 @@ def is_moderator(user_id):
     moderators = load_moderators()
     return user_id in moderators
 
+
+
+
+@bot.message_handler(regexp="➕ Выдать доступ")
+def grant_access(message):
+    if not is_moderator(message.from_user.id):
+        bot.send_message(message.chat.id, "У вас нет доступа к этой функции.")
+        return
+
+    msg = bot.send_message(message.chat.id, "Введите Telegram ID пользователя, которому вы хотите выдать доступ:")
+    bot.register_next_step_handler(msg, process_grant_access)
+
+def process_grant_access(message):
+    try:
+        user_id = int(message.text)
+        data = load_data()
+        if user_id in data['access_list']:
+            bot.send_message(message.chat.id, "Этот пользователь уже имеет доступ.")
+        else:
+            data['access_list'].append(user_id)
+            save_data(data)
+            bot.send_message(message.chat.id, "Доступ успешно выдан пользователю.")
+    except ValueError:
+        bot.send_message(message.chat.id, "Некорректный формат ID. Пожалуйста, введите корректный Telegram ID.")
+
+@bot.message_handler(regexp="🗑️ Отозвать доступ")
+def revoke_access(message):
+    if not is_moderator(message.from_user.id):
+        bot.send_message(message.chat.id, "У вас нет доступа к этой функции.")
+        return
+
+    msg = bot.send_message(message.chat.id, "Введите Telegram ID пользователя, у которого вы хотите отозвать доступ:")
+    bot.register_next_step_handler(msg, process_revoke_access)
+
+def process_revoke_access(message):
+    try:
+        user_id = int(message.text)
+        data = load_data()
+        if user_id in data['access_list']:
+            data['access_list'].remove(user_id)
+            save_data(data)
+            bot.send_message(message.chat.id, "Доступ успешно отозван у пользователя.")
+        else:
+            bot.send_message(message.chat.id, "Этот пользователь не имеет доступа.")
+    except ValueError:
+        bot.send_message(message.chat.id, "Некорректный формат ID. Пожалуйста, введите корректный Telegram ID.")
+
+
 # Начальное меню
 @bot.message_handler(commands=['start'])
 def start(message):
