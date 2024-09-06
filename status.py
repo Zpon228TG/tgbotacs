@@ -272,7 +272,7 @@ def process_birthdays_photo(message, month):
     else:
         bot.send_message(message.chat.id, "Пожалуйста, отправьте фото.")
 
-# Удаление именинников: фото
+# Обработчик удаления имени
 @bot.message_handler(func=lambda message: message.text in ['Да', 'Нет'])
 def handle_remove_birthdays_photo(message):
     if not is_moderator(message.from_user.id):
@@ -280,7 +280,8 @@ def handle_remove_birthdays_photo(message):
         return
 
     if message.text == 'Да':
-        month = message.text[2:].lower()
+        # Убедитесь, что правильный месяц установлен для удаления
+        month = message.reply_to_message.text.split()[3].lower()
         data = load_data()
         if month in data['birthdays']:
             os.remove(data['birthdays'][month])
@@ -289,6 +290,9 @@ def handle_remove_birthdays_photo(message):
             bot.send_message(message.chat.id, f"Фото именинников для {month.capitalize()} удалено.")
         else:
             bot.send_message(message.chat.id, "Фото именинников для этого месяца не найдено.")
+    else:
+        bot.send_message(message.chat.id, "Удаление отменено.")
+
 
 # Добавление администратора
 @bot.message_handler(regexp="➕ Добавить администратора")
@@ -328,6 +332,10 @@ def process_remove_moderator(message):
         user_id = int(message.text)
         moderators = load_moderators()
         if user_id in moderators:
+            if user_id == ADMIN_ID:
+                bot.send_message(message.chat.id, "Вы не можете удалить главного администратора.")
+                return
+
             moderators.remove(user_id)
             save_moderators(moderators)
             bot.send_message(message.chat.id, "Пользователь успешно удален из администраторов.")
@@ -335,6 +343,17 @@ def process_remove_moderator(message):
             bot.send_message(message.chat.id, "Этот пользователь не является администратором.")
     except ValueError:
         bot.send_message(message.chat.id, "Некорректный формат ID. Пожалуйста, введите корректный Telegram ID.")
+
+
+
+# Кнопка "Назад" для главного меню
+@bot.message_handler(regexp="🔙 Назад")
+def go_back(message):
+    if not has_access(message.from_user.id):
+        bot.send_message(message.chat.id, "У вас нет доступа к этой функции.")
+        return
+
+    start(message)  # Возвращаемся к главному меню
 
 # Главный цикл
 bot.polling()
