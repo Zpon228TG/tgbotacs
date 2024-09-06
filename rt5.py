@@ -2,6 +2,7 @@ import telebot
 from telebot import types
 import json
 import datetime
+import pytz
 from apscheduler.schedulers.background import BackgroundScheduler
 
 TOKEN = '7053322665:AAFe3nW8Ls3oThVaA1gDXCq7biaaolWe7IA'
@@ -15,7 +16,7 @@ BIRTHDAYS_FILE = 'birthdays.json'
 SCHEDULE_FILE = 'schedule.json'
 MODERATORS_FILE = 'moderators.json'
 
-# Функция загрузки данных из JSON файла
+# Загрузка данных из JSON
 def load_json(filename):
     try:
         with open(filename, 'r') as file:
@@ -23,7 +24,7 @@ def load_json(filename):
     except FileNotFoundError:
         return {}
 
-# Функция сохранения данных в JSON файл
+# Сохранение данных в JSON
 def save_json(filename, data):
     with open(filename, 'w') as file:
         json.dump(data, file)
@@ -42,40 +43,41 @@ def check_access(user_id):
 def main_menu(message):
     markup = types.ReplyKeyboardMarkup(resize_keyboard=True)
     if check_access(message.from_user.id):
-        markup.add("Именинники", "Расписание", "Мероприятия")
+        markup.add("🎉 Именинники", "📅 Расписание", "🎈 Мероприятия")
         if message.from_user.id == ADMIN_ID or str(message.from_user.id) in moderators:
-            markup.add("Добавить расписание", "Добавить именинника")
+            markup.add("➕ Добавить расписание", "➕ Добавить именинника")
         if message.from_user.id == ADMIN_ID:
-            markup.add("Добавить доступ", "Убрать доступ", "Добавить администратора")
-    markup.add("Назад")
-    bot.send_message(message.chat.id, "Главное меню", reply_markup=markup)
+            markup.add("🔑 Добавить доступ", "🚫 Убрать доступ", "👑 Добавить администратора")
+    markup.add("🔙 Назад")
+    bot.send_message(message.chat.id, "📋 Главное меню", reply_markup=markup)
 
-# Кнопка назад
+# Кнопка "Назад"
 def go_back_menu(message):
     main_menu(message)
 
-# Обработчик команды /start
+# Команда /start
 @bot.message_handler(commands=['start'])
 def start_handler(message):
+    bot.send_message(message.chat.id, f"👋 Привет, {message.from_user.first_name}! Добро пожаловать!")
     main_menu(message)
 
 # Добавить доступ
 def add_access(message):
     if message.from_user.id == ADMIN_ID:
-        msg = bot.send_message(message.chat.id, "Введите ID пользователя, которому вы хотите дать доступ:")
+        msg = bot.send_message(message.chat.id, "Введите ID пользователя, которому хотите дать доступ:")
         bot.register_next_step_handler(msg, process_access)
 
 def process_access(message):
     user_id = message.text
     if user_id in allowed_users:
-        bot.send_message(message.chat.id, "Пользователь уже имеет доступ.")
+        bot.send_message(message.chat.id, "⚠️ Пользователь уже имеет доступ.")
     else:
         allowed_users[user_id] = True
         save_json(ALLOWED_USERS_FILE, allowed_users)
-        bot.send_message(message.chat.id, "Доступ добавлен!")
+        bot.send_message(message.chat.id, "✅ Доступ добавлен!")
     go_back_menu(message)
 
-# Удалить доступ
+# Убрать доступ
 def remove_access(message):
     if message.from_user.id == ADMIN_ID:
         msg = bot.send_message(message.chat.id, "Введите ID пользователя для удаления доступа:")
@@ -86,9 +88,9 @@ def process_remove_access(message):
     if user_id in allowed_users:
         del allowed_users[user_id]
         save_json(ALLOWED_USERS_FILE, allowed_users)
-        bot.send_message(message.chat.id, "Доступ удален!")
+        bot.send_message(message.chat.id, "🚫 Доступ удален!")
     else:
-        bot.send_message(message.chat.id, "Такого пользователя нет в списке.")
+        bot.send_message(message.chat.id, "⚠️ Такого пользователя нет в списке.")
     go_back_menu(message)
 
 # Добавить администратора
@@ -100,11 +102,11 @@ def add_moderator(message):
 def process_add_moderator(message):
     user_id = message.text
     if user_id in moderators:
-        bot.send_message(message.chat.id, "Этот пользователь уже модератор.")
+        bot.send_message(message.chat.id, "⚠️ Этот пользователь уже модератор.")
     else:
         moderators[user_id] = True
         save_json(MODERATORS_FILE, moderators)
-        bot.send_message(message.chat.id, "Пользователь добавлен как модератор.")
+        bot.send_message(message.chat.id, "👑 Пользователь добавлен как модератор.")
     go_back_menu(message)
 
 # Добавить расписание
@@ -132,17 +134,17 @@ def process_teacher_name(message, lesson_name, lesson_index, schedule_data, less
     if len(schedule_data) == lessons_count:
         schedule[str(datetime.date.today())] = schedule_data
         save_json(SCHEDULE_FILE, schedule)
-        bot.send_message(message.chat.id, "Расписание успешно добавлено!")
+        bot.send_message(message.chat.id, "✅ Расписание успешно добавлено!")
         go_back_menu(message)
 
 # Показать расписание
 def show_schedule(message):
     if not schedule:
-        bot.send_message(message.chat.id, "Расписание не найдено.")
+        bot.send_message(message.chat.id, "📅 Расписание не найдено.")
     else:
         schedule_str = ""
         for date, lessons in schedule.items():
-            schedule_str += f"Дата: {date}\n"
+            schedule_str += f"📅 Дата: {date}\n"
             for lesson_num, lesson_info in lessons.items():
                 schedule_str += f"{lesson_num}: {lesson_info['name']} - {lesson_info['teacher']}\n"
         bot.send_message(message.chat.id, schedule_str)
@@ -163,23 +165,24 @@ def process_birthday_date(message, name):
     user_id = message.from_user.id
     birthdays[name] = {"birthday": birthday, "user_id": user_id}
     save_json(BIRTHDAYS_FILE, birthdays)
-    bot.send_message(message.chat.id, "Именинник добавлен!")
+    bot.send_message(message.chat.id, "✅ Именинник добавлен!")
     go_back_menu(message)
 
 # Поздравить именинников
 def check_birthdays():
-    today = datetime.date.today()
+    tz = pytz.timezone('Europe/Moscow')
+    today = datetime.datetime.now(tz).date()
     for name, info in birthdays.items():
         birthday = datetime.datetime.strptime(info['birthday'], "%Y-%m-%d").date()
         if (birthday - today).days == 1:
-            bot.send_message(info['user_id'], f"Завтра день рождения у {name}!")
+            bot.send_message(info['user_id'], f"🎉 Завтра день рождения у {name}!")
         elif birthday == today:
-            bot.send_message(info['user_id'], f"С Днем Рождения, {name}!")
+            bot.send_message(info['user_id'], f"🎉 С Днем Рождения, {name}!")
 
-# Функция для проверки именинников каждые сутки
+# Планировщик проверки именинников
 def schedule_birthday_check():
     scheduler = BackgroundScheduler()
-    scheduler.add_job(check_birthdays, 'interval', days=1)
+    scheduler.add_job(check_birthdays, 'interval', days=1, timezone='Europe/Moscow')
     scheduler.start()
 
 # Запуск проверки именинников
@@ -188,26 +191,23 @@ schedule_birthday_check()
 # Обработчик кнопок
 @bot.message_handler(func=lambda message: True)
 def button_handler(message):
-    if message.text == "Именинники":
+    if message.text == "🎉 Именинники":
         check_birthdays()
-    elif message.text == "Расписание":
+    elif message.text == "📅 Расписание":
         show_schedule(message)
-    elif message.text == "Мероприятия":
+    elif message.text == "🎈 Мероприятия":
         bot.send_message(message.chat.id, "Список мероприятий скоро будет доступен.")
-    elif message.text == "Добавить расписание":
+    elif message.text == "➕ Добавить расписание":
         add_schedule(message)
-    elif message.text == "Добавить именинника":
+    elif message.text == "➕ Добавить именинника":
         add_birthday(message)
-    elif message.text == "Добавить доступ":
+    elif message.text == "🔑 Добавить доступ":
         add_access(message)
-    elif message.text == "Убрать доступ":
+    elif message.text == "🚫 Убрать доступ":
         remove_access(message)
-    elif message.text == "Добавить администратора":
+    elif message.text == "👑 Добавить администратора":
         add_moderator(message)
-    elif message.text == "Назад":
+    elif message.text == "🔙 Назад":
         go_back_menu(message)
-    else:
-        bot.send_message(message.chat.id, "Неизвестная команда.")
 
-# Поллинг бота
-bot.polling(none_stop=True)
+bot.polling()
