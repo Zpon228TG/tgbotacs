@@ -15,6 +15,19 @@ MODERATORS_FILE = 'moderators.json'
 BIRTHDAYS_PATH = '.'  # Папка с изображениями именинников в той же директории
 SCHEDULE_PHOTO_PATH = '.'  # Папка с изображениями расписания в той же директории
 
+
+def load_events():
+    try:
+        with open('events.json', 'r') as file:
+            return json.load(file)
+    except FileNotFoundError:
+        return []
+
+def save_events(events):
+    with open('events.json', 'w') as file:
+        json.dump(events, file, indent=4)
+
+
 def load_data():
     if not os.path.exists(DATA_FILE):
         return {
@@ -434,6 +447,74 @@ def go_back(message):
         return
 
     start(message)  # Возвращаемся к главному меню
+
+
+
+
+
+@bot.message_handler(regexp="🗑️ Удалить мероприятие")
+def delete_event(message):
+    user_id = message.from_user.id
+    events = load_events()
+    if not events:
+        bot.send_message(message.chat.id, "Мероприятий пока нет.")
+        return
+
+    # Попросите пользователя ввести дату мероприятия для удаления
+    bot.send_message(message.chat.id, "Введите дату мероприятия, которое хотите удалить (в формате YYYY-MM-DD):")
+    bot.register_next_step_handler(message, process_delete_event, user_id, events)
+
+def process_delete_event(message, user_id, events):
+    event_date = message.text
+    event_found = False
+    for event in events:
+        if event['date'] == event_date and event['creator_id'] == user_id:
+            events.remove(event)
+            save_events(events)
+            bot.send_message(message.chat.id, "Мероприятие удалено!")
+            event_found = True
+            break
+    if not event_found:
+        bot.send_message(message.chat.id, "Вы не можете удалить это мероприятие.")
+
+
+@bot.message_handler(regexp="🎉 Мероприятия")
+def view_events(message):
+    user_id = message.from_user.id
+    events = load_events()
+    if not events:
+        bot.send_message(message.chat.id, "Мероприятий пока нет.")
+        return
+
+    events_text = "\n".join([f"{event['date']} - {event['description']}" for event in events])
+    bot.send_message(message.chat.id, f"Список мероприятий:\n{events_text}")
+
+@bot.message_handler(regexp="🎉 Создать мероприятие")
+def create_event(message):
+    # Попросите пользователя ввести дату и описание мероприятия
+    bot.send_message(message.chat.id, "Введите дату мероприятия (в формате YYYY-MM-DD):")
+    bot.register_next_step_handler(message, process_event_date)
+
+def process_event_date(message):
+    user_id = message.from_user.id
+    event_date = message.text
+    bot.send_message(message.chat.id, "Введите описание мероприятия:")
+    bot.register_next_step_handler(message, process_event_description, event_date, user_id)
+
+def process_event_description(message, event_date, user_id):
+    event_description = message.text
+    # Сохраните мероприятие
+    event = {
+        'date': event_date,
+        'description': event_description,
+        'creator_id': user_id
+    }
+    events = load_events()
+    events.append(event)
+    save_events(events)
+    bot.send_message(message.chat.id, "Мероприятие создано!")
+
+
 
 # Главный цикл
 bot.polling()
