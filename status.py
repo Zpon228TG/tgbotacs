@@ -77,10 +77,10 @@ def save_moderators(moderators):
     with open(MODERATORS_FILE, 'w') as f:
         json.dump(moderators, f, indent=4)
 
-# Проверка доступа пользователя
 def has_access(user_id):
     data = load_data()
     return user_id in data['access_list'] or user_id == ADMIN_ID
+
 
 def is_moderator(user_id):
     moderators = load_moderators()
