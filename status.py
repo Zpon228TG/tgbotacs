@@ -286,16 +286,7 @@ def add_moderator(message):
     msg = bot.send_message(message.chat.id, "Введите Telegram ID пользователя для добавления в администраторы:")
     bot.register_next_step_handler(msg, process_add_moderator)
 
-def process_add_moderator(message):
-    try:
-        user_id = int(message.text)
-        moderators = load_moderators()
-        if user_id in moderators:
-            bot.send_message(message.chat.id, "Этот пользователь уже является администратором.")
-        else:
-            moderators.append(user_id)
-            save_moderators(moder
-                            def process_add_moderator(message):
+def def process_add_moderator(message):
     try:
         user_id = int(message.text)
         moderators = load_moderators()
@@ -307,6 +298,7 @@ def process_add_moderator(message):
             bot.send_message(message.chat.id, "Пользователь успешно добавлен в администраторы.")
     except ValueError:
         bot.send_message(message.chat.id, "Некорректный формат ID. Пожалуйста, введите корректный Telegram ID.")
+
 
 
 
