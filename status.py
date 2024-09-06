@@ -83,7 +83,7 @@ def schedule(message):
 
     data = load_data()
     markup = types.ReplyKeyboardMarkup(resize_keyboard=True)
-    if data['schedule_photo']:
+    if data.get('schedule_photo'):
         markup.add('🖼️ Просмотр расписания как фото')
     markup.add('🔙 Назад')
     bot.send_message(message.chat.id, "Выберите формат просмотра расписания:", reply_markup=markup)
@@ -96,7 +96,7 @@ def view_schedule_photo(message):
         return
 
     data = load_data()
-    if data['schedule_photo']:
+    if data.get('schedule_photo'):
         bot.send_photo(message.chat.id, open(data['schedule_photo'], 'rb'))
     else:
         bot.send_message(message.chat.id, "Фото расписания отсутствует.")
@@ -158,7 +158,7 @@ def admin_panel(message):
 
     if is_moderator(message.from_user.id):
         markup = types.ReplyKeyboardMarkup(resize_keyboard=True)
-        markup.add('📸 Добавить расписание как фото', '🗑️ Удалить расписание', '📸 Добавить именинников', '🗑️ Удалить именинников')
+        markup.add('📸 Добавить расписание как фото', '🗑️ Удалить расписание', '📸 Добавить именинников', '🗑️ Удалить именинников', '➕ Добавить администратора')
         markup.add('🔙 Назад')
         bot.send_message(message.chat.id, "Админ панель:", reply_markup=markup)
 
@@ -259,37 +259,69 @@ def process_birthdays_photo(message, month):
     else:
         bot.send_message(message.chat.id, "Пожалуйста, отправьте фото.")
 
+# Удаление именинников: фото
 @bot.message_handler(func=lambda message: message.text in ['Да', 'Нет'])
 def handle_remove_birthdays_photo(message):
     if not is_moderator(message.from_user.id):
         bot.send_message(message.chat.id, "У вас нет доступа к этой функции.")
         return
 
-    month = message.text[2:].lower()
-    data = load_data()
-    if month in data['birthdays']:
-        os.remove(data['birthdays'][month])
-        del data['birthdays'][month]
-        save_data(data)
-        bot.send_message(message.chat.id, f"Фото именинников для {month.capitalize()} удалено.")
-    else:
-        bot.send_message(message.chat.id, "Фото именинников для этого месяца не найдено.")
+    if message.text == 'Да':
+        month = message.text[2:].lower()
+        data = load_data()
+        if month in data['birthdays']:
+            os.remove(data['birthdays'][month])
+            del data['birthdays'][month]
+            save_data(data)
+            bot.send_message(message.chat.id, f"Фото именинников для {month.capitalize()} удалено.")
+        else:
+            bot.send_message(message.chat.id, "Фото именинников для этого месяца не найдено.")
 
-# Удаление именинников: фото
-@bot.message_handler(regexp="🗑️ Удалить именинников")
-def delete_birthdays(message):
+# Добавление администратора
+@bot.message_handler(regexp="➕ Добавить администратора")
+def add_moderator(message):
     if not is_moderator(message.from_user.id):
         bot.send_message(message.chat.id, "У вас нет доступа к этой функции.")
         return
 
-    data = load_data()
-    month_names = [datetime.date(1900, i, 1).strftime('%B').lower() for i in range(1, 13)]
-    markup = types.ReplyKeyboardMarkup(resize_keyboard=True)
-    for month in month_names:
-        if data['birthdays'].get(month):
-            markup.add(f"✅ {month.capitalize()}")
-    markup.add('🔙 Назад')
-    bot.send_message(message.chat.id, "Выберите месяц для удаления фото именинников:", reply_markup=markup)
+    msg = bot.send_message(message.chat.id, "Введите Telegram ID пользователя для добавления в администраторы:")
+    bot.register_next_step_handler(msg, process_add_moderator)
+
+def process_add_moderator(message):
+    try:
+        user_id = int(message.text)
+        moderators = load_moderators()
+        if user_id in moderators:
+            bot.send_message(message.chat.id, "Этот пользователь уже является администратором.")
+        else:
+            moderators.append(user_id)
+            save_moderators(moderators)
+            bot.send_message(message.chat.id, "Пользователь успешно добавлен в администраторы.")
+    except ValueError:
+        bot.send_message(message.chat.id, "Некорректный формат ID. Пожалуйста, введите корректный Telegram ID.")
+
+# Удаление администратора
+@bot.message_handler(regexp="🗑️ Удалить администратора")
+def remove_moderator(message):
+    if not is_moderator(message.from_user.id):
+        bot.send_message(message.chat.id, "У вас нет доступа к этой функции.")
+        return
+
+    msg = bot.send_message(message.chat.id, "Введите Telegram ID пользователя для удаления из администраторов:")
+    bot.register_next_step_handler(msg, process_remove_moderator)
+
+def process_remove_moderator(message):
+    try:
+        user_id = int(message.text)
+        moderators = load_moderators()
+        if user_id in moderators:
+            moderators.remove(user_id)
+            save_moderators(moderators)
+            bot.send_message(message.chat.id, "Пользователь успешно удален из администраторов.")
+        else:
+            bot.send_message(message.chat.id, "Этот пользователь не является администратором.")
+    except ValueError:
+        bot.send_message(message.chat.id, "Некорректный формат ID. Пожалуйста, введите корректный Telegram ID.")
 
 # Главный цикл
 bot.polling()
