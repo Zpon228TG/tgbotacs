@@ -459,7 +459,19 @@ def process_delete_event(message, user_id, events):
         bot.send_message(message.chat.id, "Вы не можете удалить это мероприятие или мероприятие не найдено.")
 
 
+# Расписание: выбор формата
+@bot.message_handler(regexp="🎉 Мероприятие")
+def schedule(message):
+    if not has_access(message.from_user.id):
+        bot.send_message(message.chat.id, "У вас нет доступа к этой функции.")
+        return
 
+    data = load_data()
+    markup = types.ReplyKeyboardMarkup(resize_keyboard=True)
+    if data.get('schedule_photo'):
+        markup.add('🎉 Создать мероприятие')
+    markup.add('🔙 Назад')
+    bot.send_message(message.chat.id, "Выберите формат просмотра расписания:", reply_markup=markup)
 
 
 
