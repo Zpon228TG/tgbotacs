@@ -3,7 +3,7 @@ from telebot import types
 import json
 import datetime
 import pytz
-from apscheduler.schedulers.background import BackgroundScheduler
+import os
 
 TOKEN = '7053322665:AAFe3nW8Ls3oThVaA1gDXCq7biaaolWe7IA'
 ADMIN_ID = 750334025
@@ -11,203 +11,244 @@ ADMIN_ID = 750334025
 bot = telebot.TeleBot(TOKEN)
 
 # Файлы для хранения данных
-ALLOWED_USERS_FILE = 'allowed_users.json'
-BIRTHDAYS_FILE = 'birthdays.json'
-SCHEDULE_FILE = 'schedule.json'
+DATA_FILE = 'data.json'
 MODERATORS_FILE = 'moderators.json'
+BIRTHDAYS_PATH = '.'  # Папка с изображениями именинников в той же директории
 
-# Загрузка данных из JSON
-def load_json(filename):
-    try:
-        with open(filename, 'r') as file:
-            return json.load(file)
-    except FileNotFoundError:
-        return {}
+# Загрузка данных
+def load_data():
+    if not os.path.exists(DATA_FILE):
+        return {'schedule': {}, 'access_list': []}
+    with open(DATA_FILE, 'r') as f:
+        return json.load(f)
 
-# Сохранение данных в JSON
-def save_json(filename, data):
-    with open(filename, 'w') as file:
-        json.dump(data, file)
+def save_data(data):
+    with open(DATA_FILE, 'w') as f:
+        json.dump(data, f, indent=4)
 
-# Инициализация данных
-allowed_users = load_json(ALLOWED_USERS_FILE)
-moderators = load_json(MODERATORS_FILE)
-birthdays = load_json(BIRTHDAYS_FILE)
-schedule = load_json(SCHEDULE_FILE)
+def load_moderators():
+    if not os.path.exists(MODERATORS_FILE):
+        return [ADMIN_ID]
+    with open(MODERATORS_FILE, 'r') as f:
+        return json.load(f)
 
-# Функция проверки доступа
-def check_access(user_id):
-    return str(user_id) in allowed_users or user_id == ADMIN_ID
+def save_moderators(moderators):
+    with open(MODERATORS_FILE, 'w') as f:
+        json.dump(moderators, f, indent=4)
 
-# Главное меню
-def main_menu(message):
-    markup = types.ReplyKeyboardMarkup(resize_keyboard=True)
-    if check_access(message.from_user.id):
-        markup.add("🎉 Именинники", "📅 Расписание", "🎈 Мероприятия")
-        if message.from_user.id == ADMIN_ID or str(message.from_user.id) in moderators:
-            markup.add("➕ Добавить расписание", "➕ Добавить именинника")
-        if message.from_user.id == ADMIN_ID:
-            markup.add("🔑 Добавить доступ", "🚫 Убрать доступ", "👑 Добавить администратора")
-    markup.add("🔙 Назад")
-    bot.send_message(message.chat.id, "📋 Главное меню", reply_markup=markup)
+# Проверка доступа
+def has_access(user_id):
+    data = load_data()
+    return user_id in data['access_list'] or user_id == ADMIN_ID
 
-# Кнопка "Назад"
-def go_back_menu(message):
-    main_menu(message)
+def is_moderator(user_id):
+    moderators = load_moderators()
+    return user_id in moderators
 
-# Команда /start
+def reset_schedule():
+    data = load_data()
+    data['schedule'] = {}
+    save_data(data)
+    print("Расписание сброшено.")
+
+# Начальное меню
 @bot.message_handler(commands=['start'])
-def start_handler(message):
-    bot.send_message(message.chat.id, f"👋 Привет, {message.from_user.first_name}! Добро пожаловать!")
-    main_menu(message)
+def start(message):
+    markup = types.ReplyKeyboardMarkup(resize_keyboard=True)
+    markup.add('📅 Именинники', '📚 Расписание', '🎉 Мероприятия')
+    if is_moderator(message.from_user.id):
+        markup.add('👑 Админка')
+    bot.send_message(message.chat.id, "Добро пожаловать!", reply_markup=markup)
 
-# Добавить доступ
-def add_access(message):
-    if message.from_user.id == ADMIN_ID:
-        msg = bot.send_message(message.chat.id, "Введите ID пользователя, которому хотите дать доступ:")
-        bot.register_next_step_handler(msg, process_access)
-
-def process_access(message):
-    user_id = message.text
-    if user_id in allowed_users:
-        bot.send_message(message.chat.id, "⚠️ Пользователь уже имеет доступ.")
+# Отправка изображения с именинниками
+@bot.message_handler(regexp="📅 Именинники")
+def birthdays(message):
+    month = datetime.datetime.now().strftime("%B").lower()
+    file_path = os.path.join(BIRTHDAYS_PATH, f'{month}.jpg')
+    if os.path.exists(file_path):
+        bot.send_photo(message.chat.id, open(file_path, 'rb'))
     else:
-        allowed_users[user_id] = True
-        save_json(ALLOWED_USERS_FILE, allowed_users)
-        bot.send_message(message.chat.id, "✅ Доступ добавлен!")
-    go_back_menu(message)
+        bot.send_message(message.chat.id, "Изображение именинников для этого месяца отсутствует.")
+        print(f"Изображение для месяца {month} отсутствует.")
 
-# Убрать доступ
+# Расписание: выбор дня недели
+@bot.message_handler(regexp="📚 Расписание")
+def schedule(message):
+    markup = types.ReplyKeyboardMarkup(resize_keyboard=True)
+    days = ['Понедельник', 'Вторник', 'Среда', 'Четверг', 'Пятница']
+    for day in days:
+        markup.add(day)
+    markup.add('🔙 Назад')
+    bot.send_message(message.chat.id, "Выберите день недели для просмотра расписания:", reply_markup=markup)
+
+# Отображение расписания
+@bot.message_handler(func=lambda message: message.text in ['Понедельник', 'Вторник', 'Среда', 'Четверг', 'Пятница'])
+def show_schedule(message):
+    day = message.text
+    data = load_data()
+    schedule = data.get('schedule', {}).get(day, [])
+    if schedule:
+        response = f"Расписание на {day}:\n\n"
+        for i, lesson in enumerate(schedule):
+            response += f"{i+1}. {lesson['lesson']} - {lesson['teacher']}\n"
+        bot.send_message(message.chat.id, response)
+    else:
+        bot.send_message(message.chat.id, f"Расписание на {day} отсутствует.")
+
+# Админка
+@bot.message_handler(regexp="👑 Админка")
+def admin_panel(message):
+    if is_moderator(message.from_user.id):
+        markup = types.ReplyKeyboardMarkup(resize_keyboard=True)
+        markup.add('➕ Добавить доступ', '➖ Убрать доступ', '📅 Добавить расписание', '🔄 Сбросить расписание', '📝 Изменить расписание', '🔙 Назад')
+        bot.send_message(message.chat.id, "Админ панель:", reply_markup=markup)
+
+# Добавление доступа
+@bot.message_handler(regexp="➕ Добавить доступ")
+def add_access(message):
+    if is_moderator(message.from_user.id):
+        msg = bot.send_message(message.chat.id, "Введите ID пользователя для добавления доступа:")
+        bot.register_next_step_handler(msg, process_add_access)
+
+def process_add_access(message):
+    user_id = int(message.text)
+    data = load_data()
+    if user_id in data['access_list']:
+        bot.send_message(message.chat.id, "Этот пользователь уже имеет доступ.")
+    else:
+        data['access_list'].append(user_id)
+        save_data(data)
+        bot.send_message(message.chat.id, "Доступ успешно добавлен.")
+
+# Удаление доступа
+@bot.message_handler(regexp="➖ Убрать доступ")
 def remove_access(message):
-    if message.from_user.id == ADMIN_ID:
+    if is_moderator(message.from_user.id):
         msg = bot.send_message(message.chat.id, "Введите ID пользователя для удаления доступа:")
         bot.register_next_step_handler(msg, process_remove_access)
 
 def process_remove_access(message):
-    user_id = message.text
-    if user_id in allowed_users:
-        del allowed_users[user_id]
-        save_json(ALLOWED_USERS_FILE, allowed_users)
-        bot.send_message(message.chat.id, "🚫 Доступ удален!")
+    user_id = int(message.text)
+    data = load_data()
+    if user_id in data['access_list']:
+        data['access_list'].remove(user_id)
+        save_data(data)
+        bot.send_message(message.chat.id, "Доступ успешно удален.")
     else:
-        bot.send_message(message.chat.id, "⚠️ Такого пользователя нет в списке.")
-    go_back_menu(message)
+        bot.send_message(message.chat.id, "Пользователь не найден в списке доступов.")
 
-# Добавить администратора
-def add_moderator(message):
-    if message.from_user.id == ADMIN_ID:
-        msg = bot.send_message(message.chat.id, "Введите ID пользователя, которого хотите сделать модератором:")
-        bot.register_next_step_handler(msg, process_add_moderator)
-
-def process_add_moderator(message):
-    user_id = message.text
-    if user_id in moderators:
-        bot.send_message(message.chat.id, "⚠️ Этот пользователь уже модератор.")
-    else:
-        moderators[user_id] = True
-        save_json(MODERATORS_FILE, moderators)
-        bot.send_message(message.chat.id, "👑 Пользователь добавлен как модератор.")
-    go_back_menu(message)
-
-# Добавить расписание
+# Добавление расписания: выбор дня
+@bot.message_handler(regexp="📅 Добавить расписание")
 def add_schedule(message):
-    if message.from_user.id == ADMIN_ID or str(message.from_user.id) in moderators:
-        msg = bot.send_message(message.chat.id, "Сколько уроков в расписании?")
-        bot.register_next_step_handler(msg, process_schedule)
+    if is_moderator(message.from_user.id):
+        markup = types.ReplyKeyboardMarkup(resize_keyboard=True)
+        days = ['Понедельник', 'Вторник', 'Среда', 'Четверг', 'Пятница']
+        for day in days:
+            markup.add(day)
+        markup.add('🔙 Назад')
+        msg = bot.send_message(message.chat.id, "Выберите день недели для добавления расписания:", reply_markup=markup)
+        bot.register_next_step_handler(msg, process_add_schedule_day)
 
-def process_schedule(message):
-    lessons_count = int(message.text)
-    schedule_data = {}
-    for i in range(lessons_count):
-        msg = bot.send_message(message.chat.id, f"Введите название урока {i+1}:")
-        bot.register_next_step_handler(msg, lambda m, i=i: process_lesson_name(m, i, schedule_data, lessons_count))
+def process_add_schedule_day(message):
+    day = message.text
+    msg = bot.send_message(message.chat.id, "Введите количество уроков для этого дня:")
+    bot.register_next_step_handler(msg, process_add_schedule_lessons, day)
 
-def process_lesson_name(message, lesson_index, schedule_data, lessons_count):
+def process_add_schedule_lessons(message, day):
+    try:
+        lesson_count = int(message.text)
+        data = load_data()
+        data['schedule'][day] = []
+        for i in range(lesson_count):
+            msg = bot.send_message(message.chat.id, f"Введите название {i+1}-го урока:")
+            bot.register_next_step_handler(msg, process_add_lesson_name, day, i, lesson_count, data)
+    except ValueError:
+        bot.send_message(message.chat.id, "Введите число.")
+
+def process_add_lesson_name(message, day, i, lesson_count, data):
     lesson_name = message.text
-    msg = bot.send_message(message.chat.id, f"Введите ФИО преподавателя для урока {lesson_index+1}:")
-    bot.register_next_step_handler(msg, lambda m, lesson_name=lesson_name, lesson_index=lesson_index, lessons_count=lessons_count: process_teacher_name(m, lesson_name, lesson_index, schedule_data, lessons_count))
+    msg = bot.send_message(message.chat.id, f"Введите ФИО преподавателя для {lesson_name}:")
+    bot.register_next_step_handler(msg, process_add_lesson_teacher, day, i, lesson_name, lesson_count, data)
 
-def process_teacher_name(message, lesson_name, lesson_index, schedule_data, lessons_count):
+def process_add_lesson_teacher(message, day, i, lesson_name, lesson_count, data):
     teacher_name = message.text
-    schedule_data[f"lesson_{lesson_index+1}"] = {"name": lesson_name, "teacher": teacher_name}
-    
-    if len(schedule_data) == lessons_count:
-        schedule[str(datetime.date.today())] = schedule_data
-        save_json(SCHEDULE_FILE, schedule)
-        bot.send_message(message.chat.id, "✅ Расписание успешно добавлено!")
-        go_back_menu(message)
-
-# Показать расписание
-def show_schedule(message):
-    if not schedule:
-        bot.send_message(message.chat.id, "📅 Расписание не найдено.")
+    data['schedule'][day].append({"lesson": lesson_name, "teacher": teacher_name})
+    if i+1 == lesson_count:
+        save_data(data)
+        bot.send_message(message.chat.id, f"Расписание на {day} успешно добавлено.")
     else:
-        schedule_str = ""
-        for date, lessons in schedule.items():
-            schedule_str += f"📅 Дата: {date}\n"
-            for lesson_num, lesson_info in lessons.items():
-                schedule_str += f"{lesson_num}: {lesson_info['name']} - {lesson_info['teacher']}\n"
-        bot.send_message(message.chat.id, schedule_str)
+        msg = bot.send_message(message.chat.id, f"Введите название {i+2}-го урока:")
+        bot.register_next_step_handler(msg, process_add_lesson_name, day, i+1, lesson_count, data)
 
-# Добавить именинника
-def add_birthday(message):
-    if message.from_user.id == ADMIN_ID or str(message.from_user.id) in moderators:
-        msg = bot.send_message(message.chat.id, "Введите имя именинника:")
-        bot.register_next_step_handler(msg, process_birthday_name)
+# Сброс расписания
+@bot.message_handler(regexp="🔄 Сбросить расписание")
+def reset_schedule_command(message):
+    if is_moderator(message.from_user.id):
+        reset_schedule()
+        bot.send_message(message.chat.id, "Расписание успешно сброшено.")
 
-def process_birthday_name(message):
-    name = message.text
-    msg = bot.send_message(message.chat.id, "Введите дату рождения (в формате ГГГГ-ММ-ДД):")
-    bot.register_next_step_handler(msg, lambda m, name=name: process_birthday_date(m, name))
+# Изменение расписания
+@bot.message_handler(regexp="📝 Изменить расписание")
+def edit_schedule(message):
+    if is_moderator(message.from_user.id):
+        markup = types.ReplyKeyboardMarkup(resize_keyboard=True)
+        days = ['Понедельник', 'Вторник', 'Среда', 'Четверг', 'Пятница']
+        for day in days:
+            markup.add(day)
+        markup.add('🔙 Назад')
+        msg = bot.send_message(message.chat.id, "Выберите день недели для изменения расписания:", reply_markup=markup)
+        bot.register_next_step_handler(msg, process_edit_schedule_day)
 
-def process_birthday_date(message, name):
-    birthday = message.text
-    user_id = message.from_user.id
-    birthdays[name] = {"birthday": birthday, "user_id": user_id}
-    save_json(BIRTHDAYS_FILE, birthdays)
-    bot.send_message(message.chat.id, "✅ Именинник добавлен!")
-    go_back_menu(message)
+def process_edit_schedule_day(message):
+    day = message.text
+    data = load_data()
+    schedule = data.get('schedule', {}).get(day, [])
+    if schedule:
+        response = f"Расписание на {day}:\n\n"
+        for i, lesson in enumerate(schedule):
+            response += f"{i+1}. {lesson['lesson']} - {lesson['teacher']}\n"
+        bot.send_message(message.chat.id, response)
+        msg = bot.send_message(message.chat.id, "Введите номер урока, который хотите изменить:")
+        bot.register_next_step_handler(msg, process_edit_lesson_number, day, schedule)
+    else:
+        bot.send_message(message.chat.id, f"Расписание на {day} отсутствует.")
 
-# Поздравить именинников
-def check_birthdays():
-    tz = pytz.timezone('Europe/Moscow')
-    today = datetime.datetime.now(tz).date()
-    for name, info in birthdays.items():
-        birthday = datetime.datetime.strptime(info['birthday'], "%Y-%m-%d").date()
-        if (birthday - today).days == 1:
-            bot.send_message(info['user_id'], f"🎉 Завтра день рождения у {name}!")
-        elif birthday == today:
-            bot.send_message(info['user_id'], f"🎉 С Днем Рождения, {name}!")
+def process_edit_lesson_number(message, day, schedule):
+    try:
+        lesson_number = int(message.text) - 1
+        if 0 <= lesson_number < len(schedule):
+            lesson = schedule[lesson_number]
+            msg = bot.send_message(message.chat.id, f"Текущие данные:\nУрок: {lesson['lesson']}\nПреподаватель: {lesson['teacher']}\nВведите новое название урока:")
+            bot.register_next_step_handler(msg, process_edit_lesson_name, day, lesson_number, schedule)
+        else:
+            bot.send_message(message.chat.id, "Номер урока вне диапазона.")
+    except ValueError:
+        bot.send_message(message.chat.id, "Введите номер урока.")
 
-# Планировщик проверки именинников
-def schedule_birthday_check():
-    scheduler = BackgroundScheduler()
-    scheduler.add_job(check_birthdays, 'interval', days=1, timezone='Europe/Moscow')
-    scheduler.start()
+def process_edit_lesson_name(message, day, lesson_number, schedule):
+    new_lesson_name = message.text
+    msg = bot.send_message(message.chat.id, "Введите новое имя преподавателя:")
+    bot.register_next_step_handler(msg, process_edit_lesson_teacher, day, lesson_number, new_lesson_name, schedule)
 
-# Запуск проверки именинников
-schedule_birthday_check()
+def process_edit_lesson_teacher(message, day, lesson_number, new_lesson_name, schedule):
+    new_teacher_name = message.text
+    schedule[lesson_number] = {"lesson": new_lesson_name, "teacher": new_teacher_name}
+    data = load_data()
+    data['schedule'][day] = schedule
+    save_data(data)
+    bot.send_message(message.chat.id, f"Расписание на {day} обновлено.")
 
-# Обработчик кнопок
+# Кнопка "Назад"
+@bot.message_handler(regexp="🔙 Назад")
+def go_back(message):
+    start(message)
+
+# Обработка всех остальных сообщений
 @bot.message_handler(func=lambda message: True)
-def button_handler(message):
-    if message.text == "🎉 Именинники":
-        check_birthdays()
-    elif message.text == "📅 Расписание":
-        show_schedule(message)
-    elif message.text == "🎈 Мероприятия":
-        bot.send_message(message.chat.id, "Список мероприятий скоро будет доступен.")
-    elif message.text == "➕ Добавить расписание":
-        add_schedule(message)
-    elif message.text == "➕ Добавить именинника":
-        add_birthday(message)
-    elif message.text == "🔑 Добавить доступ":
-        add_access(message)
-    elif message.text == "🚫 Убрать доступ":
-        remove_access(message)
-    elif message.text == "👑 Добавить администратора":
-        add_moderator(message)
-    elif message.text == "🔙 Назад":
-        go_back_menu(message)
+def echo_all(message):
+    if message.text.lower() == 'погода':
+        bot.send_message(message.chat.id, "Погода сегодня отличная!")
+    else:
+        bot.send_message(message.chat.id, "Неизвестная команда.")
 
-bot.polling()
+bot.polling(none_stop=True)
