@@ -323,15 +323,7 @@ def handle_remove_birthdays_photo(message):
                 bot.send_message(message.chat.id, "Фото именинников для этого месяца не найдено.")
         else:
             bot.send_message(message.chat.id, "Не удалось определить месяц для удаления.")
-    else:
-        bot.send_message(message.chat.id, "Удаление отменено.")
- else:
-            bot.send_message(message.chat.id, "Пользователь успешно добавлен в администраторы.")
-    except ValueError:
-        bot.send_message(message.chat.id, "Некорректный формат ID. Пожалуйста, введите корректный Telegram ID.")
-
-
-# Удаление администратора
+#Удаление администратора
 @bot.message_handler(regexp="🗑️ Удалить администратора")
 def remove_moderator(message):
     if not is_moderator(message.from_user.id):
