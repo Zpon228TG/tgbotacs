@@ -2,7 +2,6 @@ import telebot
 from telebot import types
 import json
 import datetime
-import pytz
 import os
 
 TOKEN = '7053322665:AAFe3nW8Ls3oThVaA1gDXCq7biaaolWe7IA'
@@ -16,12 +15,24 @@ MODERATORS_FILE = 'moderators.json'
 BIRTHDAYS_PATH = '.'  # Папка с изображениями именинников в той же директории
 SCHEDULE_PHOTO_PATH = '.'  # Папка с изображениями расписания в той же директории
 
-# Загрузка данных
 def load_data():
     if not os.path.exists(DATA_FILE):
-        return {'schedule': {}, 'access_list': [], 'events': [], 'schedule_photo': None}
+        return {
+            'schedule': {},
+            'access_list': [],
+            'events': [],
+            'schedule_photo': None,
+            'birthdays': {}  # Убедитесь, что ключ 'birthdays' всегда присутствует
+        }
     with open(DATA_FILE, 'r') as f:
-        return json.load(f)
+        data = json.load(f)
+        # Добавляем недостающие ключи
+        data.setdefault('birthdays', {})
+        data.setdefault('schedule', {})
+        data.setdefault('access_list', [])
+        data.setdefault('events', [])
+        data.setdefault('schedule_photo', None)
+        return data
 
 def save_data(data):
     with open(DATA_FILE, 'w') as f:
@@ -37,7 +48,7 @@ def save_moderators(moderators):
     with open(MODERATORS_FILE, 'w') as f:
         json.dump(moderators, f, indent=4)
 
-# Проверка доступа
+# Проверка доступа пользователя
 def has_access(user_id):
     data = load_data()
     return user_id in data['access_list'] or user_id == ADMIN_ID
@@ -49,6 +60,10 @@ def is_moderator(user_id):
 # Начальное меню
 @bot.message_handler(commands=['start'])
 def start(message):
+    if not has_access(message.from_user.id):
+        bot.send_message(message.chat.id, "У вас нет доступа к этому боту.")
+        return
+
     markup = types.ReplyKeyboardMarkup(resize_keyboard=True)
     markup.add('📅 Именинники', '📚 Расписание', '🎉 Мероприятия')
     if is_moderator(message.from_user.id):
@@ -58,60 +73,41 @@ def start(message):
 # Отправка изображения с именинниками
 @bot.message_handler(regexp="📅 Именинники")
 def birthdays(message):
+    if not has_access(message.from_user.id):
+        bot.send_message(message.chat.id, "У вас нет доступа к этой функции.")
+        return
+
+    data = load_data()
     month = datetime.datetime.now().strftime("%B").lower()
-    file_path = os.path.join(BIRTHDAYS_PATH, f'{month}.jpg')
-    if os.path.exists(file_path):
+    file_path = data['birthdays'].get(month)
+    if file_path and os.path.exists(file_path):
         bot.send_photo(message.chat.id, open(file_path, 'rb'))
     else:
         bot.send_message(message.chat.id, "Изображение именинников для этого месяца отсутствует.")
-        print(f"Изображение для месяца {month} отсутствует.")
 
-# Расписание: выбор дня недели
+# Расписание: выбор формата
 @bot.message_handler(regexp="📚 Расписание")
 def schedule(message):
+    if not has_access(message.from_user.id):
+        bot.send_message(message.chat.id, "У вас нет доступа к этой функции.")
+        return
+
     data = load_data()
     markup = types.ReplyKeyboardMarkup(resize_keyboard=True)
-    if data['schedule_photo']:
-        markup.add('🖼️ Просмотр расписания как фото', '📄 Просмотр расписания как текст')
-    else:
-        markup.add('📄 Просмотр расписания как текст')
+    if data.get('schedule_photo'):
+        markup.add('🖼️ Просмотр расписания как фото')
     markup.add('🔙 Назад')
     bot.send_message(message.chat.id, "Выберите формат просмотра расписания:", reply_markup=markup)
-
-# Просмотр расписания как текст
-@bot.message_handler(regexp="📄 Просмотр расписания как текст")
-def view_schedule_text(message):
-    data = load_data()
-    if not data['schedule']:
-        bot.send_message(message.chat.id, "Расписание отсутствует.")
-        return
-    
-    markup = types.ReplyKeyboardMarkup(resize_keyboard=True)
-    days = ['Понедельник', 'Вторник', 'Среда', 'Четверг', 'Пятница']
-    for day in days:
-        markup.add(day)
-    markup.add('🔙 Назад')
-    bot.send_message(message.chat.id, "Выберите день недели для просмотра расписания:", reply_markup=markup)
-
-# Просмотр расписания как текст: отображение
-@bot.message_handler(func=lambda message: message.text in ['Понедельник', 'Вторник', 'Среда', 'Четверг', 'Пятница'])
-def show_schedule_text(message):
-    day = message.text
-    data = load_data()
-    schedule = data.get('schedule', {}).get(day, [])
-    if schedule:
-        response = f"Расписание на {day}:\n\n"
-        for i, lesson in enumerate(schedule):
-            response += f"{i+1}. {lesson['lesson']} - {lesson['teacher']}\n"
-        bot.send_message(message.chat.id, response)
-    else:
-        bot.send_message(message.chat.id, f"Расписание на {day} отсутствует.")
 
 # Просмотр расписания как фото
 @bot.message_handler(regexp="🖼️ Просмотр расписания как фото")
 def view_schedule_photo(message):
+    if not has_access(message.from_user.id):
+        bot.send_message(message.chat.id, "У вас нет доступа к этой функции.")
+        return
+
     data = load_data()
-    if data['schedule_photo']:
+    if data.get('schedule_photo'):
         bot.send_photo(message.chat.id, open(data['schedule_photo'], 'rb'))
     else:
         bot.send_message(message.chat.id, "Фото расписания отсутствует.")
@@ -119,13 +115,22 @@ def view_schedule_photo(message):
 # Мероприятия: добавление мероприятия
 @bot.message_handler(regexp="🎉 Мероприятия")
 def events(message):
+    if not has_access(message.from_user.id):
+        bot.send_message(message.chat.id, "У вас нет доступа к этой функции.")
+        return
+
     if is_moderator(message.from_user.id):
         markup = types.ReplyKeyboardMarkup(resize_keyboard=True)
-        markup.add('➕ Добавить мероприятие', '🔙 Назад')
+        markup.add('➕ Добавить мероприятие')
+        markup.add('🔙 Назад')
         bot.send_message(message.chat.id, "Выберите действие:", reply_markup=markup)
 
 @bot.message_handler(regexp="➕ Добавить мероприятие")
 def add_event(message):
+    if not has_access(message.from_user.id):
+        bot.send_message(message.chat.id, "У вас нет доступа к этой функции.")
+        return
+
     if is_moderator(message.from_user.id):
         msg = bot.send_message(message.chat.id, "Введите дату мероприятия (в формате ГГГГ-ММ-ДД):")
         bot.register_next_step_handler(msg, process_event_date)
@@ -155,59 +160,19 @@ def process_event_description(message, date, time):
     save_data(data)
     bot.send_message(message.chat.id, "Мероприятие успешно добавлено.")
 
-# Админка
-@bot.message_handler(regexp="👑 Админка")
-def admin_panel(message):
-    if is_moderator(message.from_user.id):
-        markup = types.ReplyKeyboardMarkup(resize_keyboard=True)
-        markup.add('➕ Добавить доступ', '➖ Убрать доступ', '📅 Добавить расписание', '🔄 Сбросить расписание', '📝 Изменить расписание', '🖼️ Добавить расписание как фото', '🗑️ Удалить расписание', '🔙 Назад')
-        bot.send_message(message.chat.id, "Админ панель:", reply_markup=markup)
-
-# Добавление доступа
-@bot.message_handler(regexp="➕ Добавить доступ")
-def add_access(message):
-    if is_moderator(message.from_user.id):
-        msg = bot.send_message(message.chat.id, "Введите ID пользователя для добавления доступа:")
-        bot.register_next_step_handler(msg, process_add_access)
-
-def process_add_access(message):
-    user_id = int(message.text)
-    data = load_data()
-    if user_id in data['access_list']:
-        bot.send_message(message.chat.id, "Этот пользователь уже имеет доступ.")
-    else:
-        data['access_list'].append(user_id)
-        save_data(data)
-        bot.send_message(message.chat.id, "Доступ успешно добавлен.")
-
-# Удаление доступа
-@bot.message_handler(regexp="➖ Убрать доступ")
-def remove_access(message):
-    if is_moderator(message.from_user.id):
-        msg = bot.send_message(message.chat.id, "Введите ID пользователя для удаления доступа:")
-        bot.register_next_step_handler(msg, process_remove_access)
-
-def process_remove_access(message):
-    user_id = int(message.text)
-    data = load_data()
-    if user_id in data['access_list']:
-        data['access_list'].remove(user_id)
-        save_data(data)
-        bot.send_message(message.chat.id, "Доступ успешно удален.")
-        if user_id == message.from_user.id:
-            bot.send_message(message.chat.id, "Вы больше не имеете доступа к этому боту.")
-    else:
-        bot.send_message(message.chat.id, "Пользователь не найден в списке доступов.")
-
-# Добавление расписания: фото
-@bot.message_handler(regexp="🖼️ Добавить расписание как фото")
+# Добавление расписания в виде фото
+@bot.message_handler(regexp="📸 Добавить расписание как фото")
 def add_schedule_photo(message):
-    if is_moderator(message.from_user.id):
-        if load_data().get('schedule_photo'):
-            bot.send_message(message.chat.id, "Расписание уже добавлено. Сначала удалите текущее расписание.")
-            return
-        msg = bot.send_message(message.chat.id, "Отправьте фото расписания:")
-        bot.register_next_step_handler(msg, process_schedule_photo)
+    if not is_moderator(message.from_user.id):
+        bot.send_message(message.chat.id, "У вас нет доступа к этой функции.")
+        return
+
+    if load_data().get('schedule_photo'):
+        bot.send_message(message.chat.id, "Расписание уже добавлено. Сначала удалите текущее расписание.")
+        return
+
+    msg = bot.send_message(message.chat.id, "Отправьте фото расписания:")
+    bot.register_next_step_handler(msg, process_schedule_photo)
 
 def process_schedule_photo(message):
     if message.photo:
@@ -223,93 +188,124 @@ def process_schedule_photo(message):
     else:
         bot.send_message(message.chat.id, "Пожалуйста, отправьте фото.")
 
+# Админка
+@bot.message_handler(regexp="👑 Админка")
+def admin_panel(message):
+    if not has_access(message.from_user.id):
+        bot.send_message(message.chat.id, "У вас нет доступа к этой функции.")
+        return
+
+    if is_moderator(message.from_user.id):
+        markup = types.ReplyKeyboardMarkup(resize_keyboard=True)
+        markup.add('📸 Добавить расписание как фото', '🗑️ Удалить расписание', '📸 Добавить именинников', '🗑️ Удалить именинников', '➕ Добавить администратора', '🗑️ Удалить администратора')
+        markup.add('🔙 Назад')
+        bot.send_message(message.chat.id, "Админ панель:", reply_markup=markup)
+
 # Удаление расписания: фото
 @bot.message_handler(regexp="🗑️ Удалить расписание")
 def delete_schedule_photo(message):
-    if is_moderator(message.from_user.id):
-        data = load_data()
-        if data.get('schedule_photo'):
-            os.remove(data['schedule_photo'])
-            data['schedule_photo'] = None
-            save_data(data)
-            bot.send_message(message.chat.id, "Расписание успешно удалено.")
-        else:
-            bot.send_message(message.chat.id, "Фото расписания отсутствует.")
+    if not is_moderator(message.from_user.id):
+        bot.send_message(message.chat.id, "У вас нет доступа к этой функции.")
+        return
 
-# Изменение расписания
-@bot.message_handler(regexp="📝 Изменить расписание")
-def modify_schedule(message):
-    if is_moderator(message.from_user.id):
-        markup = types.ReplyKeyboardMarkup(resize_keyboard=True)
-        days = ['Понедельник', 'Вторник', 'Среда', 'Четверг', 'Пятница']
-        for day in days:
-            markup.add(day)
-        markup.add('🔙 Назад')
-        bot.send_message(message.chat.id, "Выберите день недели для изменения расписания:", reply_markup=markup)
-        bot.register_next_step_handler(message, process_modify_schedule_day)
-
-def process_modify_schedule_day(message):
-    day = message.text
     data = load_data()
-    schedule = data.get('schedule', {}).get(day, [])
-    if schedule:
-        response = f"Расписание на {day}:\n\n"
-        for i, lesson in enumerate(schedule):
-            response += f"{i+1}. {lesson['lesson']} - {lesson['teacher']}\n"
-        bot.send_message(message.chat.id, response)
-        msg = bot.send_message(message.chat.id, "Введите номер урока, который хотите изменить:")
-        bot.register_next_step_handler(msg, process_edit_lesson_number, day, schedule)
-    else:
-        bot.send_message(message.chat.id, f"Расписание на {day} отсутствует.")
-
-def process_edit_lesson_number(message, day, schedule):
-    try:
-        lesson_number = int(message.text) - 1
-        if 0 <= lesson_number < len(schedule):
-            lesson = schedule[lesson_number]
-            msg = bot.send_message(message.chat.id, f"Текущие данные:\nУрок: {lesson['lesson']}\nПреподаватель: {lesson['teacher']}\nВведите новое название урока:")
-            bot.register_next_step_handler(msg, process_edit_lesson_name, day, lesson_number, schedule)
-        else:
-            bot.send_message(message.chat.id, "Номер урока вне диапазона.")
-    except ValueError:
-        bot.send_message(message.chat.id, "Введите номер урока.")
-
-def process_edit_lesson_name(message, day, lesson_number, schedule):
-    new_lesson_name = message.text
-    msg = bot.send_message(message.chat.id, "Введите новое имя преподавателя:")
-    bot.register_next_step_handler(msg, process_edit_lesson_teacher, day, lesson_number, new_lesson_name, schedule)
-
-def process_edit_lesson_teacher(message, day, lesson_number, new_lesson_name, schedule):
-    new_teacher_name = message.text
-    schedule[lesson_number] = {"lesson": new_lesson_name, "teacher": new_teacher_name}
-    data = load_data()
-    data['schedule'][day] = schedule
-    save_data(data)
-    bot.send_message(message.chat.id, f"Расписание на {day} обновлено.")
-
-# Сброс расписания
-@bot.message_handler(regexp="🔄 Сбросить расписание")
-def reset_schedule(message):
-    if is_moderator(message.from_user.id):
-        data = load_data()
-        if data.get('schedule_photo'):
-            os.remove(data['schedule_photo'])
-            data['schedule_photo'] = None
-        data['schedule'] = {}
+    if data.get('schedule_photo'):
+        os.remove(data['schedule_photo'])
+        data['schedule_photo'] = None
         save_data(data)
-        bot.send_message(message.chat.id, "Расписание успешно сброшено.")
+        bot.send_message(message.chat.id, "Расписание успешно удалено.")
+    else:
+        bot.send_message(message.chat.id, "Фото расписания отсутствует.")
 
-# Кнопка "Назад"
+# Добавление именинников
+@bot.message_handler(regexp="📸 Добавить именинников")
+def add_birthdays(message):
+    if not is_moderator(message.from_user.id):
+        bot.send_message(message.chat.id, "У вас нет доступа к этой функции.")
+        return
+
+    msg = bot.send_message(message.chat.id, "Отправьте изображение именинников:")
+    bot.register_next_step_handler(msg, process_birthdays_image)
+
+def process_birthdays_image(message):
+    if message.photo:
+        file_info = bot.get_file(message.photo[-1].file_id)
+        file_path = file_info.file_path
+        file = bot.download_file(file_path)
+        month = datetime.datetime.now().strftime("%B").lower()
+        file_name = f'birthdays_{month}.jpg'
+        with open(os.path.join(BIRTHDAYS_PATH, file_name), 'wb') as f:
+            f.write(file)
+        data = load_data()
+        data['birthdays'][month] = os.path.join(BIRTHDAYS_PATH, file_name)
+        save_data(data)
+        bot.send_message(message.chat.id, "Изображение именинников успешно добавлено.")
+    else:
+        bot.send_message(message.chat.id, "Пожалуйста, отправьте изображение.")
+
+# Удаление именинников
+@bot.message_handler(regexp="🗑️ Удалить именинников")
+def delete_birthdays(message):
+    if not is_moderator(message.from_user.id):
+        bot.send_message(message.chat.id, "У вас нет доступа к этой функции.")
+        return
+
+    data = load_data()
+    month = datetime.datetime.now().strftime("%B").lower()
+    if month in data['birthdays']:
+        os.remove(data['birthdays'][month])
+        del data['birthdays'][month]
+        save_data(data)
+        bot.send_message(message.chat.id, "Изображение именинников успешно удалено.")
+    else:
+        bot.send_message(message.chat.id, "Изображение именинников отсутствует.")
+
+# Добавление администратора
+@bot.message_handler(regexp="➕ Добавить администратора")
+def add_administrator(message):
+    if not is_moderator(message.from_user.id):
+        bot.send_message(message.chat.id, "У вас нет доступа к этой функции.")
+        return
+
+    msg = bot.send_message(message.chat.id, "Введите ID пользователя для добавления в администраторы:")
+    bot.register_next_step_handler(msg, process_add_administrator)
+
+def process_add_administrator(message):
+    user_id = int(message.text)
+    moderators = load_moderators()
+    if user_id not in moderators:
+        moderators.append(user_id)
+        save_moderators(moderators)
+        bot.send_message(message.chat.id, f"Пользователь с ID {user_id} добавлен в администраторы.")
+    else:
+        bot.send_message(message.chat.id, "Этот пользователь уже является администратором.")
+
+# Удаление администратора
+@bot.message_handler(regexp="🗑️ Удалить администратора")
+def remove_administrator(message):
+    if not is_moderator(message.from_user.id):
+        bot.send_message(message.chat.id, "У вас нет доступа к этой функции.")
+        return
+
+    msg = bot.send_message(message.chat.id, "Введите ID пользователя для удаления из администраторов:")
+    bot.register_next_step_handler(msg, process_remove_administrator)
+
+def process_remove_administrator(message):
+    user_id = int(message.text)
+    moderators = load_moderators()
+    if user_id in moderators:
+        if user_id == ADMIN_ID:
+            bot.send_message(message.chat.id, "Вы не можете удалить главного администратора.")
+            return
+        moderators.remove(user_id)
+        save_moderators(moderators)
+        bot.send_message(message.chat.id, f"Пользователь с ID {user_id} удален из администраторов.")
+    else:
+        bot.send_message(message.chat.id, "Этот пользователь не является администратором.")
+
+# Функция для кнопки "Назад"
 @bot.message_handler(regexp="🔙 Назад")
-def go_back(message):
+def back(message):
     start(message)
 
-# Обработка всех остальных сообщений
-@bot.message_handler(func=lambda message: True)
-def echo_all(message):
-    if message.text.lower() == 'погода':
-        bot.send_message(message.chat.id, "Погода сегодня отличная!")
-    else:
-        bot.send_message(message.chat.id, "Неизвестная команда.")
-
-bot.polling(none_stop=True)
+bot.polling()
