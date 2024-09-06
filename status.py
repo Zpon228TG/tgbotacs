@@ -39,6 +39,34 @@ def save_data(data):
     with open(DATA_FILE, 'w') as f:
         json.dump(data, f, indent=4)
 
+@bot.message_handler(commands=['start'])
+def start(message):
+    if not has_access(message.from_user.id):
+        bot.send_message(message.chat.id, "У вас нет доступа к этому боту.")
+        return
+
+    markup = types.ReplyKeyboardMarkup(resize_keyboard=True)
+    markup.add('📅 Именинники', '📚 Расписание', '🎉 Мероприятия')
+    if is_moderator(message.from_user.id):
+        markup.add('👑 Админка')
+    bot.send_message(message.chat.id, "Добро пожаловать!", reply_markup=markup)
+
+@bot.message_handler(regexp="👑 Админка")
+def admin_menu(message):
+    if not is_moderator(message.from_user.id):
+        bot.send_message(message.chat.id, "У вас нет доступа к этой функции.")
+        return
+
+    markup = types.ReplyKeyboardMarkup(resize_keyboard=True)
+    markup.add('➕ Выдать доступ', '🗑️ Отозвать доступ', '🔙 Назад')
+    bot.send_message(message.chat.id, "Админ меню:", reply_markup=markup)
+
+@bot.message_handler(regexp="🔙 Назад")
+def back_to_main(message):
+    start(message)
+
+
+
 def load_moderators():
     if not os.path.exists(MODERATORS_FILE):
         return [ADMIN_ID]
