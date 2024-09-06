@@ -286,7 +286,7 @@ def add_moderator(message):
     msg = bot.send_message(message.chat.id, "Введите Telegram ID пользователя для добавления в администраторы:")
     bot.register_next_step_handler(msg, process_add_moderator)
 
-def def process_add_moderator(message):
+def process_add_moderator(message):
     try:
         user_id = int(message.text)
         moderators = load_moderators()
