@@ -296,6 +296,9 @@ def process_add_moderator(message):
             moderators.append(user_id)
             save_moderators(moder
                             # Обработчик удаления имени
+
+
+                            
 @bot.message_handler(func=lambda message: message.text in ['Да', 'Нет'])
 def handle_remove_birthdays_photo(message):
     if not is_moderator(message.from_user.id):
