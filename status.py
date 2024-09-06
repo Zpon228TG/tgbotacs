@@ -330,41 +330,6 @@ def process_birthdays_photo(message, month):
 
 
 
-    @bot.message_handler(regexp="🗑️ Удалить именинников")
-def handle_remove_birthdays_photo(message):
-    if not is_moderator(message.from_user.id):
-        bot.send_message(message.chat.id, "У вас нет доступа к этой функции.")
-        return
-    
-    # Проверка типа чата
-    if message.chat.type == "private":
-        bot.send_message(message.chat.id, "Эта команда недоступна в приватных чатах.")
-        return
-
-    # Если чат не приватный, продолжаем обработку
-    try:
-        # Получаем администраторов
-        admins = bot.get_chat_administrators(message.chat.id)
-        # Проверка есть ли администраторы
-        if not admins:
-            bot.send_message(message.chat.id, "В чате нет администраторов.")
-            return
-        
-        # Удаление изображения именинников
-        data = load_data()
-        month = datetime.datetime.now().strftime("%B").lower()
-        file_path = data['birthdays'].get(month)
-
-        if file_path and os.path.exists(file_path):
-            os.remove(file_path)
-            del data['birthdays'][month]
-            save_data(data)
-            bot.send_message(message.chat.id, "Изображение именинников успешно удалено.")
-        else:
-            bot.send_message(message.chat.id, "Изображение именинников для этого месяца отсутствует.")
-    except Exception as e:
-        bot.send_message(message.chat.id, f"Произошла ошибка: {str(e)}")
-
 
 
 @bot.message_handler(regexp="➕ Добавить администратора")
