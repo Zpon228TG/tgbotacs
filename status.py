@@ -80,13 +80,6 @@ def back_to_main(message):
 
 
 
-bot.message_handler(regexp="%++₽+%+₽+₽655")
-def admin_menu(message):
-    markup = types.ReplyKeyboardMarkup(resize_keyboard=True)
-    markup.add('➕ Выдать доступ', '🗑️ Отозвать доступ', '🔙 Назад','📸 Добавить расписание как фото', '🗑️ Удалить расписание', '📸 Добавить именинников', '🗑️ Удалить именинников', '➕ Добавить администратора', '🗑️ Удалить администратора')
-    bot.send_message(message.chat.id, "Админ меню:", reply_markup=markup)
-
-
 def load_moderators():
     if not os.path.exists(MODERATORS_FILE):
         return [ADMIN_ID]
@@ -461,7 +454,7 @@ def process_delete_event(message, user_id, events):
 
 # Расписание: выбор формата
 @bot.message_handler(regexp="🎉 Мероприятие")
-def schedule(message):
+def schedule1(message):
     if not has_access(message.from_user.id):
         bot.send_message(message.chat.id, "У вас нет доступа к этой функции.")
         return
