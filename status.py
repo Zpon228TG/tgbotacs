@@ -352,7 +352,6 @@ def process_birthdays_photo(message, month):
 
 
 
-# Добавление администратора
 @bot.message_handler(regexp="➕ Добавить администратора")
 def add_moderator(message):
     if not is_moderator(message.from_user.id):
@@ -374,7 +373,6 @@ def process_add_moderator(message):
             bot.send_message(message.chat.id, "Пользователь успешно добавлен в администраторы.")
     except ValueError:
         bot.send_message(message.chat.id, "Некорректный формат ID. Пожалуйста, введите корректный Telegram ID.")
-
 
 
 
