@@ -162,7 +162,7 @@ def start(message):
         return
 
     markup = types.ReplyKeyboardMarkup(resize_keyboard=True)
-    markup.add('📅 Именинники', '📚 Расписание', '🎉 Создать мероприятие')
+    markup.add('📅 Именинники', '📚 Расписание', '🎉 Мероприятие')
     if is_moderator(message.from_user.id):
         markup.add('👑 Админка')
     bot.send_message(message.chat.id, "Добро пожаловать!", reply_markup=markup)
@@ -468,7 +468,7 @@ def schedule(message):
 
     data = load_data()
     markup = types.ReplyKeyboardMarkup(resize_keyboard=True)
-    markup.add('🎉 Создать мероприятие')
+    markup.add('🎉 Создать мероприятие','🗑️ Удалить мероприятие')
     markup.add('🔙 Назад')
     bot.send_message(message.chat.id, "Выберите формат просмотра расписания:", reply_markup=markup)
 
