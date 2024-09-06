@@ -310,7 +310,7 @@ def handle_month_selection(message):
         if message.text.startswith('✅'):
             # Предложение удалить фото
             markup = types.ReplyKeyboardMarkup(resize_keyboard=True)
-            markup.add('Да', 'Нет','🔙 Назад,)
+            markup.add('Да', 'Нет','🔙 Назад')
             msg = bot.send_message(message.chat.id, f"Удалить фото именинников для {month.capitalize()}?", reply_markup=markup)
             bot.register_next_step_handler(msg, confirm_deletion, month)
         elif message.text.startswith('❌'):
