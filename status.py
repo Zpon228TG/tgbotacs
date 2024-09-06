@@ -203,53 +203,6 @@ def view_schedule_photo(message):
     else:
         bot.send_message(message.chat.id, "Фото расписания отсутствует.")
 
-# Мероприятия: добавление мероприятия
-@bot.message_handler(regexp="🎉 Мероприятия")
-def events(message):
-    if not has_access(message.from_user.id):
-        bot.send_message(message.chat.id, "У вас нет доступа к этой функции.")
-        return
-
-    if is_moderator(message.from_user.id):
-        markup = types.ReplyKeyboardMarkup(resize_keyboard=True)
-        markup.add('➕ Добавить мероприятие')
-        markup.add('🔙 Назад')
-        bot.send_message(message.chat.id, "Выберите действие:", reply_markup=markup)
-
-@bot.message_handler(regexp="➕ Добавить мероприятие")
-def add_event(message):
-    if not has_access(message.from_user.id):
-        bot.send_message(message.chat.id, "У вас нет доступа к этой функции.")
-        return
-
-    if is_moderator(message.from_user.id):
-        msg = bot.send_message(message.chat.id, "Введите дату мероприятия (в формате ГГГГ-ММ-ДД):")
-        bot.register_next_step_handler(msg, process_event_date)
-
-def process_event_date(message):
-    date = message.text
-    try:
-        datetime.datetime.strptime(date, "%Y-%m-%d")
-        msg = bot.send_message(message.chat.id, "Введите время мероприятия (в формате ЧЧ:ММ):")
-        bot.register_next_step_handler(msg, process_event_time, date)
-    except ValueError:
-        bot.send_message(message.chat.id, "Некорректный формат даты. Пожалуйста, введите дату в формате ГГГГ-ММ-ДД.")
-
-def process_event_time(message, date):
-    time = message.text
-    try:
-        datetime.datetime.strptime(time, "%H:%M")
-        msg = bot.send_message(message.chat.id, "Введите описание мероприятия:")
-        bot.register_next_step_handler(msg, process_event_description, date, time)
-    except ValueError:
-        bot.send_message(message.chat.id, "Некорректный формат времени. Пожалуйста, введите время в формате ЧЧ:ММ.")
-
-def process_event_description(message, date, time):
-    description = message.text
-    data = load_data()
-    data['events'].append({"date": date, "time": time, "description": description})
-    save_data(data)
-    bot.send_message(message.chat.id, "Мероприятие успешно добавлено.")
 
 
 # Добавление расписания в виде фото
