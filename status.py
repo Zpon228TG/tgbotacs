@@ -323,15 +323,23 @@ def handle_remove_birthdays_photo(message):
                 bot.send_message(message.chat.id, "Фото именинников для этого месяца не найдено.")
         else:
             bot.send_message(message.chat.id, "Не удалось определить месяц для удаления.")
-#Удаление администратора
-@bot.message_handler(regexp="🗑️ Удалить администратора")
-def remove_moderator(message):
-    if not is_moderator(message.from_user.id):
-        bot.send_message(message.chat.id, "У вас нет доступа к этой функции.")
-        return
 
-    msg = bot.send_message(message.chat.id, "Введите Telegram ID пользователя для удаления из администраторов:")
-    bot.register_next_step_handler(msg, process_remove_moderator)
+
+def process_remove_moderator(message):
+    try:
+        user_id = int(message.text)
+        moderators = load_moderators()
+        if user_id == ADMIN_ID:
+            bot.send_message(message.chat.id, "Вы не можете удалить главного администратора.")
+            return
+        if user_id in moderators:
+            moderators.remove(user_id)
+            save_moderators(moderators)
+            bot.send_message(message.chat.id, "Пользователь успешно удалён из администраторов.")
+        else:
+            bot.send_message(message.chat.id, "Этот пользователь не является администратором.")
+    except ValueError:
+        bot.send_message(message.chat.id, "Некорректный формат ID. Пожалуйста, введите корректный Telegram ID.")
 
 
 
