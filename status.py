@@ -162,18 +162,6 @@ def process_event_description(message, date, time):
     save_data(data)
     bot.send_message(message.chat.id, "Мероприятие успешно добавлено.")
 
-# Админка
-@bot.message_handler(regexp="👑 Админка")
-def admin_panel(message):
-    if not has_access(message.from_user.id):
-        bot.send_message(message.chat.id, "У вас нет доступа к этой функции.")
-        return
-
-    if is_moderator(message.from_user.id):
-        markup = types.ReplyKeyboardMarkup(resize_keyboard=True)
-        markup.add('📸 Добавить расписание как фото', '🗑️ Удалить расписание', '📸 Добавить именинников', '🗑️ Удалить именинников', '➕ Добавить администратора')
-        markup.add('🔙 Назад')
-        bot.send_message(message.chat.id, "Админ панель:", reply_markup=markup)
 
 # Добавление расписания в виде фото
 @bot.message_handler(regexp="📸 Добавить расписание как фото")
@@ -196,7 +184,19 @@ def process_schedule_photo(message):
         file = bot.download_file(file_path)
         with open(os.path.join(SCHEDULE_PHOTO_PATH, 'schedule.jpg'), 'wb') as f:
             f.write(file)
-        data = load_data()
+
+@bot.message_handler(regexp="👑 Админка")
+def admin_panel(message):
+    if not has_access(message.from_user.id):
+        bot.send_message(message.chat.id, "У вас нет доступа к этой функции.")
+        return
+
+    if is_moderator(message.from_user.id):
+        markup = types.ReplyKeyboardMarkup(resize_keyboard=True)
+        markup.add('📸 Добавить расписание как фото', '🗑️ Удалить расписание', '📸 Добавить именинников', '🗑️ Удалить именинников', '➕ Добавить администратора', '🗑️ Удалить администратора')
+        markup.add('🔙 Назад')
+        bot.send_message(message.chat.id, "Админ панель:", reply_markup=markup)
+    data = load_data()
         data['schedule_photo'] = os.path.join(SCHEDULE_PHOTO_PATH, 'schedule.jpg')
         save_data(data)
         bot.send_message(message.chat.id, "Фото расписания успешно добавлено.")
@@ -272,26 +272,6 @@ def process_birthdays_photo(message, month):
     else:
         bot.send_message(message.chat.id, "Пожалуйста, отправьте фото.")
 
-# Обработчик удаления имени
-@bot.message_handler(func=lambda message: message.text in ['Да', 'Нет'])
-def handle_remove_birthdays_photo(message):
-    if not is_moderator(message.from_user.id):
-        bot.send_message(message.chat.id, "У вас нет доступа к этой функции.")
-        return
-
-    if message.text == 'Да':
-        # Убедитесь, что правильный месяц установлен для удаления
-        month = message.reply_to_message.text.split()[3].lower()
-        data = load_data()
-        if month in data['birthdays']:
-            os.remove(data['birthdays'][month])
-            del data['birthdays'][month]
-            save_data(data)
-            bot.send_message(message.chat.id, f"Фото именинников для {month.capitalize()} удалено.")
-        else:
-            bot.send_message(message.chat.id, "Фото именинников для этого месяца не найдено.")
-    else:
-        bot.send_message(message.chat.id, "Удаление отменено.")
 
 
 # Добавление администратора
@@ -312,10 +292,35 @@ def process_add_moderator(message):
             bot.send_message(message.chat.id, "Этот пользователь уже является администратором.")
         else:
             moderators.append(user_id)
-            save_moderators(moderators)
+            save_moderators(moder
+                            # Обработчик удаления имени
+@bot.message_handler(func=lambda message: message.text in ['Да', 'Нет'])
+def handle_remove_birthdays_photo(message):
+    if not is_moderator(message.from_user.id):
+        bot.send_message(message.chat.id, "У вас нет доступа к этой функции.")
+        return
+
+    if message.text == 'Да':
+        # Храните информацию о месяце в атрибуте user_data
+        month = bot.get_chat_administrators(message.chat.id)
+        if month:
+            data = load_data()
+            if month in data['birthdays']:
+                os.remove(data['birthdays'][month])
+                del data['birthdays'][month]
+                save_data(data)
+                bot.send_message(message.chat.id, f"Фото именинников для {month.capitalize()} удалено.")
+            else:
+                bot.send_message(message.chat.id, "Фото именинников для этого месяца не найдено.")
+        else:
+            bot.send_message(message.chat.id, "Не удалось определить месяц для удаления.")
+    else:
+        bot.send_message(message.chat.id, "Удаление отменено.")
+ators)
             bot.send_message(message.chat.id, "Пользователь успешно добавлен в администраторы.")
     except ValueError:
         bot.send_message(message.chat.id, "Некорректный формат ID. Пожалуйста, введите корректный Telegram ID.")
+
 
 # Удаление администратора
 @bot.message_handler(regexp="🗑️ Удалить администратора")
@@ -327,22 +332,6 @@ def remove_moderator(message):
     msg = bot.send_message(message.chat.id, "Введите Telegram ID пользователя для удаления из администраторов:")
     bot.register_next_step_handler(msg, process_remove_moderator)
 
-def process_remove_moderator(message):
-    try:
-        user_id = int(message.text)
-        moderators = load_moderators()
-        if user_id in moderators:
-            if user_id == ADMIN_ID:
-                bot.send_message(message.chat.id, "Вы не можете удалить главного администратора.")
-                return
-
-            moderators.remove(user_id)
-            save_moderators(moderators)
-            bot.send_message(message.chat.id, "Пользователь успешно удален из администраторов.")
-        else:
-            bot.send_message(message.chat.id, "Этот пользователь не является администратором.")
-    except ValueError:
-        bot.send_message(message.chat.id, "Некорректный формат ID. Пожалуйста, введите корректный Telegram ID.")
 
 
 
