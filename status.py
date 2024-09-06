@@ -468,8 +468,7 @@ def schedule(message):
 
     data = load_data()
     markup = types.ReplyKeyboardMarkup(resize_keyboard=True)
-    if data.get('schedule_photo'):
-        markup.add('🎉 Создать мероприятие')
+    markup.add('🎉 Создать мероприятие')
     markup.add('🔙 Назад')
     bot.send_message(message.chat.id, "Выберите формат просмотра расписания:", reply_markup=markup)
 
