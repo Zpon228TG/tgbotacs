@@ -15,12 +15,25 @@ MODERATORS_FILE = 'moderators.json'
 BIRTHDAYS_PATH = '.'  # Папка с изображениями именинников в той же директории
 SCHEDULE_PHOTO_PATH = '.'  # Папка с изображениями расписания в той же директории
 
-# Загрузка данных
 def load_data():
     if not os.path.exists(DATA_FILE):
-        return {'schedule': {}, 'access_list': [], 'events': [], 'schedule_photo': None, 'birthdays': {}}
+        return {
+            'schedule': {},
+            'access_list': [],
+            'events': [],
+            'schedule_photo': None,
+            'birthdays': {}  # Убедитесь, что ключ 'birthdays' всегда присутствует
+        }
     with open(DATA_FILE, 'r') as f:
-        return json.load(f)
+        data = json.load(f)
+        # Добавляем недостающие ключи
+        data.setdefault('birthdays', {})
+        data.setdefault('schedule', {})
+        data.setdefault('access_list', [])
+        data.setdefault('events', [])
+        data.setdefault('schedule_photo', None)
+        return data
+
 
 def save_data(data):
     with open(DATA_FILE, 'w') as f:
