@@ -4,7 +4,7 @@ import json
 import datetime
 import os
 
-TOKEN = '7053322665:AAFe3nW8Ls3oThVaA1gDXCq7biaaolWe7IA'
+TOKEN = '7476647407:AAGsNqbUdRMypXDGzDxD0axpGCx0Jyw4a_I'
 ADMIN_ID = 750334025
 
 bot = telebot.TeleBot(TOKEN)
@@ -501,8 +501,21 @@ def schedule1(message):
     bot.send_message(message.chat.id, "Выберите формат просмотра расписания:", reply_markup=markup)
 
 
+# Функция для перезапуска бота
+def restart_bot():
+    subprocess.Popen(['python', 'rt5.py'])
 
 
 
-# Главный цикл
-bot.polling()
+while True:
+    try:
+        bot.polling(none_stop=True, timeout=60, long_polling_timeout=60)
+    except Exception as e:
+        error_message = f"Ошибка: {e}"
+        print(error_message)
+        try:
+            bot.send_message(ADMIN_ID, error_message)  # Отправка сообщения об ошибке администратору
+        except Exception as send_error:
+            print(f"Ошибка при отправке сообщения: {send_error}")
+        time.sleep(15)
+
