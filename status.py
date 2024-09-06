@@ -59,7 +59,7 @@ def start(message):
         return
 
     markup = types.ReplyKeyboardMarkup(resize_keyboard=True)
-    markup.add('📅 Именинники', '📚 Расписание', '🎉 Создать мероприятие')
+    markup.add('📅 Именинники', '📚 Расписание', '🎉 Мероприятие')
     if is_moderator(message.from_user.id):
         markup.add('👑 Админка')
     bot.send_message(message.chat.id, "Добро пожаловать!", reply_markup=markup)
@@ -78,6 +78,13 @@ def admin_menu(message):
 def back_to_main(message):
     start(message)
 
+
+
+bot.message_handler(regexp="%++₽+%+₽+₽655")
+def admin_menu(message):
+    markup = types.ReplyKeyboardMarkup(resize_keyboard=True)
+    markup.add('➕ Выдать доступ', '🗑️ Отозвать доступ', '🔙 Назад','📸 Добавить расписание как фото', '🗑️ Удалить расписание', '📸 Добавить именинников', '🗑️ Удалить именинников', '➕ Добавить администратора', '🗑️ Удалить администратора')
+    bot.send_message(message.chat.id, "Админ меню:", reply_markup=markup)
 
 
 def load_moderators():
@@ -186,12 +193,12 @@ def schedule(message):
     data = load_data()
     markup = types.ReplyKeyboardMarkup(resize_keyboard=True)
     if data.get('schedule_photo'):
-        markup.add('🖼️ Просмотр расписания как фото')
+        markup.add('🖼️ Просмотр расписание')
     markup.add('🔙 Назад')
     bot.send_message(message.chat.id, "Выберите формат просмотра расписания:", reply_markup=markup)
 
 # Просмотр расписания как фото
-@bot.message_handler(regexp="🖼️ Просмотр расписания как фото")
+@bot.message_handler(regexp="🖼️ Просмотр расписание")
 def view_schedule_photo(message):
     if not has_access(message.from_user.id):
         bot.send_message(message.chat.id, "У вас нет доступа к этой функции.")
