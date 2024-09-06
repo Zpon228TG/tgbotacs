@@ -325,7 +325,7 @@ def handle_remove_birthdays_photo(message):
             bot.send_message(message.chat.id, "Не удалось определить месяц для удаления.")
     else:
         bot.send_message(message.chat.id, "Удаление отменено.")
-   else:
+ else:
             bot.send_message(message.chat.id, "Пользователь успешно добавлен в администраторы.")
     except ValueError:
         bot.send_message(message.chat.id, "Некорректный формат ID. Пожалуйста, введите корректный Telegram ID.")
