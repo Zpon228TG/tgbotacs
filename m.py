@@ -65,5 +65,5 @@ def main():
                 sendTelegramMessage(ADMIN_ID, f'Выполнено {execution_count} операций.')
         time.sleep(1)  # Пауза между запросами, настройте по необходимости
 
-if name == "main":
-    main()
+if __name__ == "__main__":
+   main()
