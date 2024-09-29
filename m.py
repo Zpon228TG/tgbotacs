@@ -6,7 +6,7 @@ import datetime
 # Константы
 API_URL = "https://botsapi.socpanel.com"
 API_TOKEN = "oq2hBkSdScR5Re1RFWbnZZdqzqbSMf"
-SERVICE_ID = 228005_4""
+SERVICE_ID = "228005_4"
 TELEGRAM_TOKEN = "7859317490:AAHi6lghknwbKU0fPHULZKyl42aGcG1lNyM"
 ADMIN_ID = "7412395676"
 
