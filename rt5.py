@@ -5,7 +5,7 @@ import datetime
 import os
 import time
 
-TOKEN = '7476647407:AAGsNqbUdRMypXDGzDxD0axpGCx0Jyw4a_I'
+TOKEN = '7859317490:AAHi6lghknwbKU0fPHULZKyl42aGcG1lNyM'
 ADMIN_ID = 750334025
 
 bot = telebot.TeleBot(TOKEN)
